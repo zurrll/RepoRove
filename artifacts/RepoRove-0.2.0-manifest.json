@@ -1,0 +1,43 @@
+{
+  "package": "app.reporove",
+  "versionName": "0.2.0",
+  "versionCode": 2,
+  "minSdk": 29,
+  "targetSdk": 36,
+  "artifact": "RepoRove-0.2.0-preview.apk",
+  "bytes": 4472404,
+  "sha256": "75be31c740d92b224ade2037d9c34adaa246a36a4e30bb67adb3f46eb9897456",
+  "r8": true,
+  "signing": "development, compatible with the 0.1.0 preview",
+  "validation": {
+    "unit": {
+      "tests": 23,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "nativeFixtureTestsPassed": 9,
+    "emulatorApi": 35,
+    "emulatorAbi": "arm64-v8a",
+    "lintErrors": {
+      "debug": 0,
+      "release": 0
+    },
+    "realGitHubR8Smoke": "PASS"
+  },
+  "physicalTargetDeviceVerified": false,
+  "catalogs": {
+    "languages.json": {
+      "source": "https://github.com/github-linguist/linguist",
+      "revision": "5fbdfcb8133be2bed88bf3ce62b2335f50474525",
+      "items": 836
+    },
+    "explore.json": {
+      "source": "https://github.com/github/explore",
+      "revision": "c8d7bc516928a4f17845b767884a80cc53affd57",
+      "topics": 1278,
+      "collections": 112
+    }
+  },
+  "implementationAndLimitations": "../本轮实现与验收.md"
+}

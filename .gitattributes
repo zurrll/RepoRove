@@ -1,0 +1,10 @@
+* text=auto
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.jar binary
+*.zip binary
+
+# Historical evidence keeps its original bytes.
+artifacts/** -text

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.reporove.ReadingAndSearchTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T13:34:18.754Z" hostname="MacBookdeMacBook-Air.local" time="0.296">
+  <properties/>
+  <testcase name="profileAndFileRoutingPreserveIdentityAndSearchRevision" classname="app.reporove.ReadingAndSearchTest" time="0.003"/>
+  <testcase name="queryBuilderQuotesLanguagesAndReplacesSelectedConflicts" classname="app.reporove.ReadingAndSearchTest" time="0.013"/>
+  <testcase name="oldPreferencesRetainInterestsAndAppearanceWithoutAddingDefaults" classname="app.reporove.ReadingAndSearchTest" time="0.016"/>
+  <testcase name="readerKeepsStructureAndRejectsActiveContent" classname="app.reporove.ReadingAndSearchTest" time="0.249"/>
+  <testcase name="relevanceWinsOverPopularityAndReasonIdentifiesSeedSource" classname="app.reporove.ReadingAndSearchTest" time="0.012"/>
+  <testcase name="relativeLinksRespectDirectoryRepositoryRootAndSlashedRef" classname="app.reporove.ReadingAndSearchTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

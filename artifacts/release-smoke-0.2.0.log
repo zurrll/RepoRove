@@ -1,0 +1,2 @@
+INSTRUMENTATION_RESULT: result=PASS: R8 APK searches real GitHub data, renders README and opens native organization profile
+INSTRUMENTATION_CODE: -1

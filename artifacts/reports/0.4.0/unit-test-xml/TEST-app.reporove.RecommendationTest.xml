@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.reporove.RecommendationTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-06T15:19:12.003Z" hostname="MacBookdeMacBook-Air.local" time="0.021">
+  <properties/>
+  <testcase name="popularityAndMaintenanceBeatTinyRecentlyPushedReposWithinSameInterest" classname="app.reporove.RecommendationTest" time="0.002"/>
+  <testcase name="interestNormalizationIsIndependentOfCatalogAndOldDownloadsStillDecode" classname="app.reporove.RecommendationTest" time="0.001"/>
+  <testcase name="coldStartUsesGuardedMainAndExplorationCandidates" classname="app.reporove.RecommendationTest" time="0.004"/>
+  <testcase name="rotatingTopicsDoNotSkipTheirFirstSearchPage" classname="app.reporove.RecommendationTest" time="0.001"/>
+  <testcase name="explorationDoesNotTakeOverFeedEvenIfManyMoreCandidatesExist" classname="app.reporove.RecommendationTest" time="0.013"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

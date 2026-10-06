@@ -1,0 +1,352 @@
+<style>
+#git-mood .stage { min-height: 900px; padding: 24px 12px 28px; box-sizing: border-box; }
+#git-mood .phone { --app-bg: light-dark(#fcfcfc,#17191b); --app-surface: light-dark(#ffffff,#222529); --app-ink: light-dark(#202522,#eef1ee); --app-sub: light-dark(#666d68,#a6b0a9); --app-line: light-dark(#e4e8e5,#363b38); --app-tint: light-dark(#edf3ef,#28372f); --app-accent: light-dark(#24613e,#a5d4b3); --app-radius: 16px; max-width: 384px; min-height: 730px; margin: 0 auto; border: 1px solid var(--app-line); border-radius: 28px; background: var(--app-bg); color: var(--app-ink); font: 14px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif; display: flex; flex-direction: column; box-shadow: 0 14px 40px light-dark(#26362b12,#00000030); overflow-wrap: anywhere; }
+#git-mood .phone * { box-sizing: border-box; }
+#git-mood .phone { min-height: 848px; }
+#git-mood .phone button,#git-mood .phone input,#git-mood .phone select { font: inherit; }
+#git-mood .phone button { color: inherit; border: 0; background: transparent; border-radius: 10px; padding: 9px 11px; min-height: 44px; }
+#git-mood .phone button:hover { background: var(--app-tint); }
+#git-mood .phone button:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
+#git-mood .phone button:disabled { opacity: .4; }
+#git-mood .phone svg { width: 20px; height: 20px; flex-shrink: 0; stroke-width: 1.7; }
+#git-mood .phone h1,#git-mood .phone h2,#git-mood .phone h3,#git-mood .phone p { margin: 0; color: inherit; font-family: inherit; }
+#git-mood .phone h1 { font-size: 26px; line-height: 1.25; font-weight: 600; letter-spacing: -.6px; }
+#git-mood .phone h2 { font-size: 18px; line-height: 1.35; font-weight: 600; }
+#git-mood .phone h3 { font-size: 15px; line-height: 1.5; font-weight: 600; }
+#git-mood .phone small { font-size: 12px; }
+#git-mood .phone .muted { color: var(--app-sub); }
+#git-mood .phone .status { display: flex; align-items: center; justify-content: space-between; padding: 14px 23px 0; font-size: 12px; font-weight: 600; }
+#git-mood .phone .status span:last-child { display: flex; gap: 5px; align-items: center; }
+#git-mood .phone .status svg { width: 15px; height: 15px; }
+#git-mood .phone .topbar { display: flex; align-items: center; justify-content: space-between; padding: 18px 16px 12px 22px; gap: 8px; }
+#git-mood .phone .topbar .actions { display: flex; gap: 0; }
+#git-mood .phone .iconbutton { display: inline-flex; align-items: center; justify-content: center; width: 44px; padding: 8px; }
+#git-mood .phone .body { padding: 0 20px 20px; flex: 1; }
+#git-mood .phone .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 3px 0 20px; }
+#git-mood .phone .chips button { min-height: 38px; padding: 7px 13px; color: var(--app-sub); border-radius: 22px; }
+#git-mood .phone .chips button[aria-pressed=true] { color: var(--app-accent); background: var(--app-tint); font-weight: 600; }
+#git-mood .phone .eyebrow { display: flex; align-items: center; gap: 7px; color: var(--app-sub); font-size: 12px; margin-bottom: 13px; }
+#git-mood .phone .eyebrow svg { width: 14px; height: 14px; }
+#git-mood .phone .repo-card { padding: 22px 0; border-bottom: 1px solid var(--app-line); }
+#git-mood .phone .repo-head { display: flex; align-items: center; gap: 11px; }
+#git-mood .phone .repo-open { text-align: left; min-width: 0; flex: 1; padding: 0; }
+#git-mood .phone .repo-open:hover { background: transparent; color: var(--app-accent); }
+#git-mood .phone .repo-open strong { display: block; font-size: 18px; font-weight: 600; }
+#git-mood .phone .repo-open small { color: var(--app-sub); }
+#git-mood .phone .avatar { width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center; background: var(--app-tint); color: var(--app-accent); border-radius: 12px; font-size: 19px; font-weight: 500; }
+#git-mood .phone .repo-desc { margin: 13px 0 16px; color: var(--app-sub); }
+#git-mood .phone .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; color: var(--app-sub); font-size: 12px; }
+#git-mood .phone .meta span { display: inline-flex; align-items: center; gap: 5px; }
+#git-mood .phone .meta svg { width: 14px; height: 14px; }
+#git-mood .phone .starred { color: var(--app-accent); background: var(--app-tint); }
+#git-mood .phone .starred svg { fill: var(--app-tint); }
+#git-mood .phone .hero { display: none; }
+#git-mood .phone .section-label { margin-top: 21px; margin-bottom: 7px; font-size: 12px; color: var(--app-sub); }
+#git-mood .phone .footnote { margin: 24px 0 0; color: var(--app-sub); font-size: 12px; text-align: center; }
+#git-mood .phone .navbar { display: flex; border-top: 1px solid var(--app-line); padding: 9px 8px 10px; gap: 2px; background: var(--app-bg); border-radius: 0 0 28px 28px; }
+#git-mood .phone .navbar button { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; align-items: center; font-size: 11px; padding: 5px 2px; color: var(--app-sub); }
+#git-mood .phone .navbar button[aria-current=page] { color: var(--app-accent); }
+#git-mood .phone .navbar button span { min-width: 40px; display: flex; justify-content: center; padding: 4px 9px; border-radius: 16px; }
+#git-mood .phone .navbar button[aria-current=page] span { background: var(--app-tint); }
+#git-mood .phone .homebar { width: 92px; height: 4px; border-radius: 4px; background: var(--app-ink); opacity: .25; margin: 1px auto 10px; }
+#git-mood .phone .searchbox { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--app-radius); background: var(--app-tint); margin: 3px 0 15px; }
+#git-mood .phone .searchbox input { width: 100%; min-width: 0; background: transparent; border: 0; padding: 8px 0; font-size: 16px; color: var(--app-ink); outline-offset: 2px; }
+#git-mood .phone .searchbox input::placeholder { color: var(--app-sub); }
+#git-mood .phone .filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 13px; }
+#git-mood .phone .filterbar label { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--app-sub); }
+#git-mood .phone select { border: 1px solid var(--app-line); border-radius: 10px; padding: 6px; background: var(--app-surface); color: var(--app-ink); max-width: 100%; min-height: 38px; }
+#git-mood .phone .item { padding: 15px 0; border-bottom: 1px solid var(--app-line); display: flex; align-items: center; gap: 12px; }
+#git-mood .phone .item .grow { flex: 1; min-width: 0; }
+#git-mood .phone .item .grow small { display: block; color: var(--app-sub); margin-top: 3px; }
+#git-mood .phone .item .lead-icon { color: var(--app-accent); width: 20px; flex-shrink: 0; }
+#git-mood .phone .box { background: var(--app-surface); border: 1px solid var(--app-line); border-radius: var(--app-radius); padding: 15px; margin: 12px 0; }
+#git-mood .phone .box .item:last-child { border-bottom: 0; padding-bottom: 0; }
+#git-mood .phone .box .item:first-child { padding-top: 0; }
+#git-mood .phone .repo-summary { margin: 7px 0 17px; }
+#git-mood .phone .repo-summary p { color: var(--app-sub); margin: 10px 0; }
+#git-mood .phone .detail-tabs { margin-top: 17px; margin-bottom: 16px; }
+#git-mood .phone .detail-tabs button { padding: 7px 10px; }
+#git-mood .phone .data-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0; }
+#git-mood .phone .data-line strong { font-weight: 500; color: var(--app-accent); }
+#git-mood .phone .data-line small { color: var(--app-sub); }
+#git-mood .phone .group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+#git-mood .phone .group-head span { display: inline-flex; align-items: center; gap: 7px; }
+#git-mood .phone .group-head svg { width: 17px; height: 17px; }
+#git-mood .phone .setting-row { min-height: 54px; display: flex; gap: 9px; align-items: center; border-bottom: 1px solid var(--app-line); }
+#git-mood .phone .setting-row label { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 50px; }
+#git-mood .phone input[type=checkbox] { accent-color: var(--app-accent); width: 18px; height: 18px; margin: 0; }
+#git-mood .phone .setting-row .iconbutton { width: 36px; }
+#git-mood .phone .empty { padding: 40px 10px; text-align: center; color: var(--app-sub); }
+#git-mood .phone .empty svg { display: block; margin: 0 auto 12px; width: 30px; height: 30px; }
+#git-mood .phone .filled { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; background: var(--app-accent); color: var(--app-bg); margin-top: 20px; }
+#git-mood .phone .filled:hover { background: var(--app-accent); opacity: .88; }
+#git-mood .phone .code { padding: 14px; border-radius: 10px; background: var(--app-tint); font: 12px/1.8 ui-monospace,monospace; overflow-wrap: anywhere; }
+#git-mood .phone .notice { color: var(--app-sub); font-size: 12px; margin-top: 12px; }
+#git-mood .phone.mono { --app-bg: light-dark(#ffffff,#171717); --app-surface: light-dark(#ffffff,#222222); --app-ink: light-dark(#191919,#f3f3f0); --app-sub: light-dark(#6c6c6c,#adadad); --app-line: light-dark(#dfdfdf,#3e3e3e); --app-tint: light-dark(#eeeeec,#303030); --app-accent: light-dark(#191919,#f3f3f0); }
+#git-mood .phone.mono .topbar { padding-top: 28px; padding-bottom: 22px; }
+#git-mood .phone.mono .topbar h1 { font-size: 36px; font-weight: 700; letter-spacing: -1.8px; }
+#git-mood .phone.mono .chips { border-bottom: 1px solid var(--app-ink); gap: 20px; padding-bottom: 0; }
+#git-mood .phone.mono .chips button { border-radius: 0; padding: 8px 0 13px; }
+#git-mood .phone.mono .chips button[aria-pressed=true] { background: transparent; box-shadow: inset 0 -3px var(--app-ink); }
+#git-mood .phone.mono .eyebrow { letter-spacing: 1px; margin: 30px 0 0; }
+#git-mood .phone.mono .avatar { display: none; }
+#git-mood .phone.mono .repo-card { padding: 30px 0; }
+#git-mood .phone.mono .repo-open { display: flex; flex-direction: column; gap: 8px; }
+#git-mood .phone.mono .repo-open strong { font-size: 30px; font-weight: 650; letter-spacing: -1px; }
+#git-mood .phone.mono .repo-desc { color: var(--app-ink); margin: 18px 0; }
+#git-mood .phone.mono .navbar { padding: 20px 13px 16px; margin: 0 20px; border-color: var(--app-ink); }
+#git-mood .phone.mono .navbar button { font-size: 13px; min-height: 44px; justify-content: center; border-radius: 0; }
+#git-mood .phone.mono .navbar button span { display: none; }
+#git-mood .phone.mono .navbar button[aria-current=page] { font-weight: 700; box-shadow: inset 0 -2px var(--app-ink); }
+#git-mood .phone.mono .box { border-radius: 0; border-left: 0; border-right: 0; padding-left: 0; padding-right: 0; }
+#git-mood .phone.ledger { --app-bg: light-dark(#fdfdfd,#171b1e); --app-surface: light-dark(#ffffff,#1e252a); --app-ink: light-dark(#263137,#e4edf1); --app-sub: light-dark(#626e75,#a4b3bb); --app-line: light-dark(#dfe5e8,#334148); --app-tint: light-dark(#edf2f4,#283940); --app-accent: light-dark(#315d6f,#aacddb); }
+#git-mood .phone.ledger .topbar h1 { font-size: 22px; font-weight: 600; }
+#git-mood .phone.ledger .topbar { border-bottom: 1px solid var(--app-line); margin-bottom: 14px; padding-top: 16px; }
+#git-mood .phone.ledger .chips { gap: 4px; margin-bottom: 20px; }
+#git-mood .phone.ledger .chips button { border-radius: 6px; min-height: 38px; font-size: 13px; }
+#git-mood .phone.ledger .avatar { width: 28px; height: 28px; flex-basis: 28px; border-radius: 6px; font-size: 14px; }
+#git-mood .phone.ledger .repo-head { gap: 9px; }
+#git-mood .phone.ledger .repo-open strong { font-size: 16px; }
+#git-mood .phone.ledger .repo-open small { font-size: 11px; }
+#git-mood .phone.ledger .repo-desc { font-size: 13px; margin: 11px 0; }
+#git-mood .phone .ledger-head { display: flex; justify-content: space-between; color: var(--app-sub); font-size: 11px; letter-spacing: 1px; padding-bottom: 10px; border-bottom: 1px solid var(--app-line); }
+#git-mood .phone .ledger-project { padding: 20px 0; border-bottom: 1px solid var(--app-line); }
+#git-mood .phone .ledger-project .repo-card { padding: 0; border: 0; }
+#git-mood .phone .ledger-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; margin-top: 17px; padding: 11px 0; background: var(--app-tint); border-radius: 5px; }
+#git-mood .phone .ledger-stats span { text-align: center; font-size: 13px; font-weight: 500; }
+#git-mood .phone .ledger-stats small { display: block; color: var(--app-sub); font-size: 11px; font-weight: 400; margin-bottom: 4px; }
+#git-mood .phone .latest-line { margin-top: 12px; display: flex; align-items: flex-start; gap: 6px; font-size: 11px; color: var(--app-sub); }
+#git-mood .phone .latest-line svg { width: 14px; height: 17px; }
+#git-mood .phone.ledger .navbar button { flex-direction: row; flex-wrap: wrap; gap: 4px; justify-content: center; font-size: 12px; }
+#git-mood .phone.ledger .navbar button span { min-width: 22px; padding: 3px; }
+#git-mood .phone.ledger .navbar button[aria-current=page] { background: var(--app-tint); border-radius: 6px; }
+#git-mood .phone.ledger .box { padding: 12px; border-radius: 6px; }
+#git-mood .phone.stream { --app-bg: light-dark(#fefefe,#191c1a); --app-surface: light-dark(#ffffff,#202722); --app-ink: light-dark(#25312a,#e7eee8); --app-sub: light-dark(#69756d,#aab8ad); --app-line: light-dark(#e0e7e2,#36473b); --app-tint: light-dark(#eff3ec,#2d3b2e); --app-accent: light-dark(#486749,#b9cfac); }
+#git-mood .phone.stream .topbar h1 { font-size: 24px; }
+#git-mood .phone.stream .chips { border-bottom: 1px solid var(--app-line); gap: 18px; }
+#git-mood .phone.stream .chips button { padding: 8px 2px 12px; border-radius: 0; }
+#git-mood .phone.stream .chips button[aria-pressed=true] { box-shadow: inset 0 -2px var(--app-accent); background: transparent; }
+#git-mood .phone .activity-post { position: relative; padding: 4px 0 28px; }
+#git-mood .phone .activity-post + .activity-post { padding-top: 14px; border-top: 1px solid var(--app-line); }
+#git-mood .phone .activity-head { display: flex; align-items: center; gap: 10px; margin-bottom: 13px; font-size: 12px; }
+#git-mood .phone .activity-head .avatar { width: 32px; height: 32px; flex-basis: 32px; border-radius: 50%; font-size: 15px; }
+#git-mood .phone .activity-head strong { display: block; font-size: 13px; font-weight: 500; }
+#git-mood .phone .activity-head small { color: var(--app-sub); font-size: 11px; }
+#git-mood .phone .activity-content { margin-left: 15px; padding-left: 26px; border-left: 1px solid var(--app-line); }
+#git-mood .phone .activity-content .repo-card { border: 0; padding: 0; }
+#git-mood .phone .activity-content .repo-head .avatar,#git-mood .phone .activity-content .repo-open small { display: none; }
+#git-mood .phone .activity-content .repo-open strong { font-size: 21px; font-weight: 600; }
+#git-mood .phone .activity-content .repo-desc { margin: 8px 0 12px; font-size: 13px; }
+#git-mood .phone .activity-note { padding: 12px 0 0; margin-top: 12px; border-top: 1px dashed var(--app-line); }
+#git-mood .phone .activity-note span { color: var(--app-accent); font-size: 12px; font-weight: 500; }
+#git-mood .phone .activity-note p { color: var(--app-sub); font-size: 12px; margin-top: 4px; }
+#git-mood .phone.stream .navbar button[aria-current=page] span { background: transparent; }
+#git-mood .phone.stream .navbar button[aria-current=page] svg { stroke-width: 2.5; }
+#git-mood .phone.stream .box { border: 0; border-left: 1px solid var(--app-line); border-radius: 0; }
+#git-mood .phone.cover { --app-bg: light-dark(#f9f8f4,#20211e); --app-surface: light-dark(#fffefa,#292b25); --app-ink: light-dark(#30392e,#e9eddf); --app-sub: light-dark(#737669,#b1b7a3); --app-line: light-dark(#dfe0d5,#454c38); --app-tint: light-dark(#e9ecdf,#363f2d); --app-accent: light-dark(#536341,#c3d4a8); }
+#git-mood .phone.cover .topbar h1 { font-size: 24px; font-family: Georgia,'Songti SC',serif; font-weight: 500; }
+#git-mood .phone.cover .chips { gap: 18px; }
+#git-mood .phone.cover .chips button { background: transparent; border-radius: 0; padding: 8px 0; }
+#git-mood .phone.cover .chips button[aria-pressed=true] { box-shadow: inset 0 -1px var(--app-accent); }
+#git-mood .phone .cover-art { min-height: 188px; padding: 24px; background: var(--app-tint); display: flex; flex-direction: column; justify-content: space-between; gap: 20px; border-radius: 2px; }
+#git-mood .phone .cover-art small { font: 11px/1.5 ui-monospace,monospace; letter-spacing: 1px; color: var(--app-accent); }
+#git-mood .phone .cover-art h2 { font-family: Georgia,'Songti SC',serif; font-size: 30px; line-height: 1.5; font-weight: 400; letter-spacing: 2px; }
+#git-mood .phone .cover-art span { font-size: 11px; color: var(--app-sub); }
+#git-mood .phone .feature-project .repo-card { padding: 18px 0 14px; border: 0; }
+#git-mood .phone .feature-project .avatar { display: none; }
+#git-mood .phone .feature-project .repo-open strong { font-size: 25px; font-family: Georgia,serif; font-weight: 500; }
+#git-mood .phone .read-project { margin: 0 0 17px; width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--app-ink); border-radius: 0; font-size: 13px; }
+#git-mood .phone .next-project { border-top: 1px solid var(--app-line); padding: 16px 0 0; }
+#git-mood .phone .next-project .repo-card { padding: 8px 0 0; border: 0; }
+#git-mood .phone .next-project .avatar { display: none; }
+#git-mood .phone .next-project .repo-desc { font-size: 12px; margin: 9px 0 13px; }
+#git-mood .phone .next-project .repo-open strong { font-size: 17px; }
+#git-mood .phone.cover .navbar { margin: 0 20px; padding-top: 13px; }
+#git-mood .phone.cover .navbar button[aria-current=page] span { background: transparent; }
+#git-mood .phone.paper { --app-bg: light-dark(#faf7f0,#211f1a); --app-surface: light-dark(#fffcf6,#2c2922); --app-ink: light-dark(#343c32,#ebe8dc); --app-sub: light-dark(#77776c,#b4b1a0); --app-line: light-dark(#dddccc,#464536); --app-tint: light-dark(#e9ecdc,#343c2c); --app-accent: light-dark(#52603d,#c5d1a7); }
+#git-mood .phone.paper .topbar h1 { font-family: Georgia,'Songti SC',serif; font-size: 29px; font-weight: 500; }
+#git-mood .phone.paper .hero { display: block; padding: 20px 0 22px; border-bottom: 1px solid var(--app-line); }
+#git-mood .phone.paper .hero h2 { font-family: Georgia,'Songti SC',serif; font-size: 30px; line-height: 1.45; font-weight: 500; letter-spacing: 1px; }
+#git-mood .phone.paper .hero small { color: var(--app-accent); letter-spacing: 1.5px; display: block; margin-bottom: 8px; }
+#git-mood .phone.paper .hero p { margin-top: 10px; color: var(--app-sub); font-size: 12px; }
+#git-mood .phone.paper .repo-card { padding: 18px 0; }
+#git-mood .phone.paper .avatar { display: none; }
+#git-mood .phone.paper .repo-open strong { font-family: Georgia,'Songti SC',serif; font-size: 23px; font-weight: 500; }
+#git-mood .phone.paper .repo-desc { margin: 9px 0 12px; }
+#git-mood .phone.paper .chips { margin-bottom: 0; gap: 12px; }
+#git-mood .phone.paper .chips button { border-radius: 0; padding-left: 0; padding-right: 0; min-height: 40px; }
+#git-mood .phone.paper .chips button[aria-pressed=true] { background: transparent; box-shadow: inset 0 -2px var(--app-accent); }
+#git-mood .phone.paper .eyebrow { display: none; }
+#git-mood .phone.paper .footnote { margin-top: 18px; }
+#git-mood .phone.paper .navbar { padding-top: 13px; }
+#git-mood .phone[data-density=compact] .repo-card { padding-top: 13px; padding-bottom: 13px; }
+#git-mood .phone[data-density=compact] .repo-desc { margin: 7px 0; }
+#git-mood .phone[data-density=compact] .item { padding-top: 10px; padding-bottom: 10px; }
+#git-mood .phone[data-density=compact] .hero { padding-top: 10px; padding-bottom: 12px; }
+#git-mood .phone.ledger .ledger-project { padding: 14px 0; }
+#git-mood .phone.ledger .ledger-project .repo-card { padding: 0; }
+#git-mood .phone.ledger .ledger-stats { margin-top: 10px; padding: 8px 0; }
+#git-mood .phone.stream .activity-post { padding-bottom: 18px; }
+#git-mood .phone.stream .activity-post + .activity-post { padding-top: 8px; }
+#git-mood .phone.stream .activity-note { margin-top: 8px; padding-top: 8px; }
+#git-mood .phone.cover .cover-art { min-height: 168px; padding: 20px; gap: 12px; }
+#git-mood .phone.cover .cover-art h2 { font-size: 28px; line-height: 1.35; }
+#git-mood .phone.cover .feature-project .repo-desc { margin: 9px 0; }
+#git-mood .phone.cover .next-project .repo-desc { display: none; }
+#git-mood .phone.cover .next-project .meta { margin-top: 9px; }
+#git-mood .phone:is(.mono,.ledger,.stream) .box { border-radius: var(--app-radius); }
+@media(max-width:400px) { #git-mood .stage { padding: 18px 0 22px; min-height: 940px; } #git-mood .phone { border-radius: 22px; min-height: 900px; } #git-mood .phone .body { padding-left: 16px; padding-right: 16px; } #git-mood .phone .topbar { padding-left: 18px; } #git-mood .phone .meta { gap: 10px; } #git-mood .phone .filterbar { gap: 6px; } }
+</style>
+<div id="git-mood" class="viz-carousel viz-dotted-background" aria-label="GitHub 安卓客户端风格探索" data-previous-label="上一种风格" data-next-label="下一种风格">
+  <section class="stage" data-variant="黑白字排" aria-label="黑白字排风格"><div class="phone mono" data-style="mono" aria-label="黑白字排外观"></div></section>
+  <section class="stage" data-variant="紧凑清单" aria-label="紧凑清单风格" hidden><div class="phone ledger" data-style="ledger" aria-label="紧凑清单外观"></div></section>
+  <section class="stage" data-variant="动态时间线" aria-label="动态时间线风格" hidden><div class="phone stream" data-style="stream" aria-label="动态时间线外观"></div></section>
+  <section class="stage" data-variant="封面阅读" aria-label="封面阅读风格" hidden><div class="phone cover" data-style="cover" aria-label="封面阅读外观"></div></section>
+  <section class="stage" data-variant="清爽留白" aria-label="清爽留白风格" hidden><div class="phone minimal" data-style="minimal" aria-label="清爽留白外观"></div></section>
+  <section class="stage" data-variant="纸感阅读" aria-label="纸感阅读风格" hidden><div class="phone paper" data-style="paper" aria-label="纸感阅读外观"></div></section>
+</div>
+<script>
+(function () {
+  const root = document.getElementById('git-mood');
+  const names = { mono: '黑白字排', ledger: '紧凑清单', stream: '动态时间线', cover: '封面阅读', minimal: '清爽留白', paper: '纸感阅读' };
+  const tabNames = { discover: '发现', inbox: '收件箱', repos: '仓库', saved: '收藏' };
+  const tabIcons = { discover: 'compass', inbox: 'inbox', repos: 'folder-git-2', saved: 'bookmark' };
+  const modules = { release: '最新版本', work: 'Issue 与 PR', actions: 'Actions', activity: '最近提交', readme: 'README' };
+  const projects = [
+    { id: 'mori', owner: 'mori-labs', name: 'mori-notes', desc: '把想法留在本地。一款安静、轻巧的 Markdown 笔记应用。', language: 'Kotlin', stars: '2.4k', time: '2 小时前', glyph: 'm' },
+    { id: 'lumen', owner: 'lumen-team', name: 'lumen-ui', desc: '为 Android 打造的界面组件。细腻的动效，恰到好处的留白。', language: 'Kotlin', stars: '860', time: '昨天', glyph: 'L' }
+  ];
+  const state = {};
+  function defaults(style) { return { screen: 'discover', filter: '为你', searchType: '仓库', query: '', searchRan: false, settingsGroup: '导航', tabs: Object.keys(tabNames), visible: Object.keys(tabNames), modules: Object.keys(modules), starred: [], density: style === 'ledger' ? 'compact' : 'comfortable', radius: ['mono','ledger','cover'].includes(style) ? 4 : 14, project: 'mori', repoTab: '概览', inboxRead: false, language: '全部', order: '最匹配', issueStatus: '全部' }; }
+  function hydrate(snapshot) {
+    const saved = snapshot && snapshot.privateContent && snapshot.privateContent.variants;
+    Object.keys(names).forEach(function(style) {
+      const base = defaults(style); const previous = saved && saved[style];
+      const next = previous && typeof previous === 'object' ? Object.assign({}, base, previous) : base;
+      if (state[style]) Object.assign(state[style], next); else state[style] = next;
+      state[style].tabs = Array.isArray(state[style].tabs) ? Array.from(new Set(state[style].tabs.filter(x => tabNames[x]))) : base.tabs;
+      Object.keys(tabNames).forEach(x => { if (!state[style].tabs.includes(x)) state[style].tabs.push(x); });
+      state[style].visible = Array.isArray(state[style].visible) ? state[style].visible.filter(x => tabNames[x]) : base.visible;
+      if (!state[style].visible.length) state[style].visible = ['discover'];
+      state[style].modules = Array.isArray(state[style].modules) ? state[style].modules.filter(x => modules[x]) : Object.keys(modules);
+      state[style].starred = Array.isArray(state[style].starred) ? state[style].starred.filter(x => projects.some(p => p.id === x)) : [];
+    });
+  }
+  hydrate(window.openai && window.openai.widgetState);
+  function esc(value) { return String(value).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function icon(name) { return '<i data-lucide="' + name + '" aria-hidden="true"></i>'; }
+  function button(action, value, label, content, extra) { return '<button type="button" class="cursor-interaction ' + (extra || '') + '" data-action="' + action + '" data-value="' + esc(value) + '" aria-label="' + esc(label) + '">' + content + '</button>'; }
+  function chips(values, current, action, cls) { return '<div class="chips ' + (cls || '') + '" aria-label="' + (action === 'searchType' ? '搜索类型' : '内容选择') + '">' + values.map(v => '<button type="button" class="cursor-interaction" data-action="' + action + '" data-value="' + esc(v) + '" aria-pressed="' + (current === v) + '">' + esc(v) + '</button>').join('') + '</div>'; }
+  function projectCard(p, s) { const starred = s.starred.includes(p.id); return '<article class="repo-card"><div class="repo-head"><div class="avatar">' + p.glyph + '</div>' + button('project', p.id, '查看 ' + p.name, '<small>' + p.owner + '</small><strong>' + p.name + '</strong>', 'repo-open') + button('star', p.id, starred ? '取消收藏 ' + p.name : '收藏 ' + p.name, icon('star'), 'iconbutton' + (starred ? ' starred' : '')) + '</div><p class="repo-desc">' + p.desc + '</p><div class="meta"><span>' + icon('code-2') + p.language + '</span><span>' + icon('star') + p.stars + '</span><span>' + p.time + '</span></div></article>'; }
+  function row(iconName, title, subtitle, trailing) { return '<div class="item"><span class="lead-icon">' + icon(iconName) + '</span><div class="grow">' + title + '<small>' + subtitle + '</small></div>' + (trailing || '') + '</div>'; }
+  function discover(s, style) {
+    let items = s.filter === '已收藏' ? projects.filter(p => s.starred.includes(p.id)) : s.filter === '最近更新' ? projects.slice().reverse() : projects;
+    const filters = chips(['为你', '最近更新', '已收藏'], s.filter, 'filter');
+    const sample = '<div class="footnote">示例内容 · ' + items.length + ' 个项目</div>';
+    if (items.length && style === 'ledger') return filters + '<div class="ledger-head"><span>项目速览</span><span>Android / 开源工具</span></div>' + items.map(function(p) {
+      return '<article class="ledger-project">' + projectCard(p,s) + '<div class="ledger-stats"><span><small>Release</small>v1.8.0</span><span><small>Issue</small>12</span><span><small>PR</small>3</span><span><small>CI</small>通过</span></div><div class="latest-line">' + icon('git-commit-horizontal') + '<span>优化大文件的加载速度 · main</span></div></article>';
+    }).join('') + sample;
+    if (items.length && style === 'stream') return filters + items.map(function(p,index) {
+      return '<article class="activity-post"><div class="activity-head"><div class="avatar">' + p.glyph + '</div><div><strong>' + p.owner + '</strong><small>' + (index === 0 ? '发布了新版本' : '更新了仓库') + ' · ' + p.time + '</small></div></div><div class="activity-content">' + projectCard(p,s) + '<div class="activity-note"><span>' + (index === 0 ? 'v1.8.0 · 新版本' : 'main · 最近提交') + '</span><p>' + (index === 0 ? '新增离线搜索，优化启动体验。' : '优化大文件的加载速度。') + '</p></div></div></article>';
+    }).join('') + sample;
+    if (items.length && style === 'cover') {
+      const p = items[0];
+      return filters + '<article class="feature-project"><div class="cover-art"><small>' + p.name.toUpperCase() + ' / README</small><h2>' + (p.id === 'mori' ? '把想法<br>留在本地。' : '让每一次交互<br>恰到好处。') + '</h2><span>ANDROID · OPEN SOURCE</span></div>' + projectCard(p,s) + button('project',p.id,'阅读 '+ p.name,'阅读项目 ' + icon('arrow-up-right'),'read-project') + '</article>' + (items.length > 1 ? '<div class="next-project"><small class="muted">接着看</small>' + projectCard(items[1],s) + '</div>' : '') + sample;
+    }
+    return chips(['为你', '最近更新', '已收藏'], s.filter, 'filter') + '<div class="hero"><small>THE OPEN SOURCE JOURNAL</small><h2>发现下一份<br>灵感。</h2><p>好项目，值得慢慢看。</p></div><div class="eyebrow">' + icon('sliders-horizontal') + '你的兴趣 · Android / 开源工具</div>' + (items.length ? items.map(p => projectCard(p, s)).join('') : '<div class="empty">' + icon('bookmark') + '收藏喜欢的项目后，会出现在这里。</div>') + '<div class="footnote">示例内容 · ' + items.length + ' 个项目</div>';
+  }
+  function repo(s) {
+    const p = projects.find(p => p.id === s.project) || projects[0];
+    let out = '<div class="repo-summary"><small class="muted">' + p.owner + ' /</small><h1>' + p.name + '</h1><p>' + p.desc + '</p><div class="meta"><span>' + icon('star') + p.stars + '</span><span>Kotlin</span><span>Apache-2.0</span></div></div>' + chips(['概览', '代码', '讨论'], s.repoTab, 'repoTab', 'detail-tabs');
+    if (s.repoTab === '代码') return out + '<div class="box">' + row('git-branch','main','示例分支') + row('folder','app','Android 应用') + row('folder','core','基础模块') + row('file-text','README.md','项目介绍') + row('file-code','build.gradle.kts','构建配置') + '</div>';
+    if (s.repoTab === '讨论') return out + row('message-circle','你希望下个版本支持什么？','功能建议 · 12 条回复') + row('message-circle','分享你的使用方式','交流 · 8 条回复');
+    const content = {
+      release: '<div class="box"><div class="group-head"><span>' + icon('package') + '最新版本</span><small class="muted">昨天</small></div><h3>v1.8.0</h3><small class="muted">新增离线搜索，优化启动体验。</small></div>',
+      work: '<div class="box"><div class="data-line"><span>Issue</span><strong>12 个开放</strong></div><div class="data-line"><span>Pull request</span><strong>3 个待合并</strong></div></div>',
+      actions: '<div class="box"><div class="group-head"><span>' + icon('circle-check') + 'Actions</span><small class="muted">6 分钟前</small></div><small>Android CI · 通过</small></div>',
+      activity: '<div class="box"><div class="group-head"><span>' + icon('git-commit-horizontal') + '最近提交</span><small class="muted">2 小时前</small></div><small>优化大文件的加载速度</small></div>',
+      readme: '<div class="box"><div class="group-head"><span>' + icon('book-open') + 'README</span></div><small>' + p.desc + '</small></div>'
+    };
+    return out + (s.modules.length ? s.modules.map(k => content[k]).join('') : '<div class="empty">尚未选择概览模块</div>') + button('settings', '仓库概览', '自定义仓库概览', icon('sliders-horizontal') + ' 自定义概览', 'filled');
+  }
+  function search(s) {
+    let out = '<form class="searchbox" data-search-form>' + icon('search') + '<input aria-label="搜索内容" data-query value="' + esc(s.query) + '" placeholder="搜索开源世界" autocomplete="off">' + button('runSearch', '', '搜索', icon('arrow-right'), 'iconbutton') + '</form>' + chips(['仓库', '代码', 'Issue', 'PR', '用户'], s.searchType, 'searchType');
+    if (s.searchType === '仓库' || s.searchType === '代码') out += '<div class="filterbar"><label>语言<select aria-label="语言" data-field="language"><option' + (s.language === '全部' ? ' selected' : '') + '>全部</option><option' + (s.language === 'Kotlin' ? ' selected' : '') + '>Kotlin</option><option' + (s.language === 'TypeScript' ? ' selected' : '') + '>TypeScript</option></select></label>' + (s.searchType === '仓库' ? '<label>排序<select aria-label="排序" data-field="order">' + ['最匹配','Star 最多','最近更新'].map(x => '<option' + (s.order === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select></label>' : '') + '</div>';
+    if (s.searchType === 'Issue' || s.searchType === 'PR') out += '<div class="filterbar"><label>状态<select aria-label="状态" data-field="issueStatus">' + ['全部','开放','已关闭'].map(x => '<option' + (s.issueStatus === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select></label><small class="muted">范围：所有公开仓库</small></div>';
+    if (!s.searchRan) return out + '<div class="section-label">试着搜一搜</div>' + button('suggest', 'notes', '搜索 notes', 'notes') + button('suggest', 'android', '搜索 android', 'android') + '<div class="notice">示例搜索 · 输入后查看类型与筛选的变化</div>';
+    const q = s.query.trim().toLowerCase();
+    out += '<div class="section-label" role="status">' + esc(s.searchType) + ' · 示例结果</div>';
+    if (s.searchType === '仓库') { let matches = projects.filter(p => (!q || q === 'android' || (p.name + p.desc).toLowerCase().includes(q)) && (s.language === '全部' || s.language === p.language)); if (s.order === '最近更新') matches = matches.slice().reverse(); return out + (matches.length ? matches.map(p => projectCard(p, s)).join('') : '<div class="empty">示例库中没有匹配项目</div>'); }
+    if (s.searchType === '代码') return out + (s.language === 'TypeScript' ? '<div class="empty">示例库中没有匹配代码</div>' : row('file-code','NotesScreen.kt','mori-labs / mori-notes · app/ui') + '<div class="code">@Composable<br>fun NotesScreen() {<br>&nbsp; NotesList(notes = state.notes)<br>}</div>');
+    if (s.searchType === '用户') return out + row('user-round','mori-labs','开源笔记与 Android 工具') + row('user-round','lumen-team','用心打磨每一次交互');
+    return out + (s.issueStatus === '已关闭' ? row('circle-check', s.searchType === 'PR' ? '合并离线搜索模块' : '修复首次启动闪退', 'mori-labs / mori-notes · 已关闭') : row(s.searchType === 'PR' ? 'git-pull-request' : 'circle-dot', s.searchType === 'PR' ? '支持自定义主题' : '增加笔记的标签筛选', 'mori-labs / mori-notes · 开放'));
+  }
+  function settings(s) {
+    let out = chips(['导航','仓库概览'], s.settingsGroup, 'settingsGroup');
+    if (s.settingsGroup === '导航') {
+      out += '<div class="section-label">显示的选项卡 · 按箭头调整顺序</div>';
+      s.tabs.forEach(function(key,index) { out += '<div class="setting-row"><label class="cursor-interaction"><input type="checkbox" data-toggle-tab="' + key + '" ' + (s.visible.includes(key) ? 'checked' : '') + (s.visible.length === 1 && s.visible.includes(key) ? ' disabled' : '') + '>' + icon(tabIcons[key]) + tabNames[key] + '</label>' + (index > 0 ? button('moveTab',key, '上移' + tabNames[key],icon('arrow-up'),'iconbutton') : '') + '</div>'; });
+      out += '<div class="notice">至少保留一个选项卡。搜索与设置始终可从顶部打开。</div>';
+    } else {
+      out += '<div class="section-label">显示的概览模块</div>';
+      Object.keys(modules).forEach(function(key) { out += '<div class="setting-row"><label class="cursor-interaction"><input type="checkbox" data-toggle-module="' + key + '" ' + (s.modules.includes(key) ? 'checked' : '') + '>' + modules[key] + '</label></div>'; });
+      out += '<div class="notice">关闭模块后，仍可通过仓库详情入口访问。</div>';
+    }
+    return out + button('doneSettings', '', '查看调整后的界面', '查看效果 ' + icon('arrow-right'), 'filled');
+  }
+  function render(style) {
+    const s = state[style], phone = root.querySelector('[data-style="' + style + '"]');
+    phone.style.setProperty('--app-radius', s.radius + 'px'); phone.dataset.density = s.density;
+    const detail = ['repo','search','settings'].includes(s.screen);
+    const title = s.screen === 'repo' ? '仓库' : s.screen === 'search' ? '搜索' : s.screen === 'settings' ? '自定义' : tabNames[s.screen] || '发现';
+    let html = '<div class="status"><span>9:41</span><span>' + icon('wifi') + icon('battery-full') + '</span></div><header class="topbar">' + (detail ? button('back','','返回',icon('arrow-left'),'iconbutton') : '') + '<h1>' + title + '</h1><div class="actions">' + (s.screen !== 'search' ? button('screen','search','打开搜索',icon('search'),'iconbutton') : '') + (s.screen !== 'settings' ? button('settings',s.screen === 'repo' ? '仓库概览' : '导航','自定义界面',icon('sliders-horizontal'),'iconbutton') : '') + '</div></header><main class="body">';
+    if (s.screen === 'discover') html += discover(s,style);
+    else if (s.screen === 'repo') html += repo(s);
+    else if (s.screen === 'search') html += search(s);
+    else if (s.screen === 'settings') html += settings(s);
+    else if (s.screen === 'repos') html += '<div class="eyebrow">' + icon('pin') + '置顶仓库</div>' + projects.map(p => projectCard(p,s)).join('');
+    else if (s.screen === 'saved') html += s.starred.length ? projects.filter(p => s.starred.includes(p.id)).map(p => projectCard(p,s)).join('') : '<div class="empty">' + icon('bookmark') + '收藏感兴趣的项目，留待慢慢看。</div>';
+    else if (s.screen === 'inbox') html += '<div class="eyebrow">' + (s.inboxRead ? '全部已读' : '2 条未读') + '</div>' + row('git-pull-request','支持自定义主题','mori-notes · 请求你的审核',s.inboxRead ? icon('check') : '') + row('package','v1.8.0 已发布','mori-notes · 昨天',s.inboxRead ? icon('check') : '') + button('read','','切换已读状态',s.inboxRead ? '撤销全部已读' : '全部标为已读','filled');
+    html += '</main><nav class="navbar" aria-label="主导航">' + s.tabs.filter(k => s.visible.includes(k)).map(k => '<button type="button" class="cursor-interaction" data-action="screen" data-value="' + k + '"' + (s.screen === k ? ' aria-current="page"' : '') + '><span>' + icon(tabIcons[k]) + '</span>' + tabNames[k] + '</button>').join('') + '</nav><div class="homebar"></div>';
+    phone.innerHTML = html;
+    if (globalThis.lucide) lucide.createIcons({ attrs: { width: 20, height: 20 } });
+  }
+  function save(style) {
+    if (window.openai && window.openai.setWidgetState) window.openai.setWidgetState({modelContent: { recentlyEditedStyle: names[style], choices: Object.fromEntries(Object.keys(names).map(k => [names[k], { density: state[k].density, visibleTabs: state[k].tabs.filter(t => state[k].visible.includes(t)).map(t => tabNames[t]), repositoryModules: state[k].modules.map(m => modules[m]), searchType: state[k].searchType }])) }, privateContent: { variants: state }}).catch(function(){});
+  }
+  Object.keys(names).forEach(render);
+  root.addEventListener('click', function(event) {
+    const target = event.target.closest('button[data-action]'); if (!target || !root.contains(target)) return;
+    const phone = target.closest('[data-style]'); const style = phone.dataset.style, s = state[style], action = target.dataset.action, value = target.dataset.value;
+    if (action === 'screen') s.screen = value;
+    else if (action === 'back') s.screen = s.visible.includes('discover') ? 'discover' : s.tabs.find(k => s.visible.includes(k));
+    else if (action === 'project') { s.project = value; s.screen = 'repo'; s.repoTab = '概览'; }
+    else if (action === 'settings') { s.settingsGroup = value; s.screen = 'settings'; }
+    else if (action === 'doneSettings') { s.screen = s.settingsGroup === '仓库概览' ? 'repo' : s.tabs.find(k => s.visible.includes(k)); }
+    else if (action === 'moveTab') { const i = s.tabs.indexOf(value); if (i > 0) [s.tabs[i-1],s.tabs[i]] = [s.tabs[i],s.tabs[i-1]]; }
+    else if (action === 'star') { s.starred = s.starred.includes(value) ? s.starred.filter(x => x !== value) : s.starred.concat(value); }
+    else if (action === 'read') s.inboxRead = !s.inboxRead;
+    else if (action === 'suggest') { s.query = value; s.searchRan = true; }
+    else if (action === 'runSearch') { s.query = phone.querySelector('[data-query]').value; s.searchRan = true; }
+    else if (['filter','searchType','repoTab','settingsGroup'].includes(action)) s[action] = value;
+    render(style); save(style);
+  });
+  root.addEventListener('input', function(event) { if (event.target.matches('[data-query]')) state[event.target.closest('[data-style]').dataset.style].query = event.target.value; });
+  root.addEventListener('submit', function(event) { if (!event.target.matches('[data-search-form]')) return; event.preventDefault(); const style = event.target.closest('[data-style]').dataset.style; state[style].searchRan = true; render(style); save(style); });
+  root.addEventListener('change', function(event) {
+    const element = event.target, phone = element.closest('[data-style]'); if (!phone) return;
+    const style = phone.dataset.style, s = state[style];
+    if (element.hasAttribute('data-toggle-tab')) { const key = element.dataset.toggleTab; s.visible = element.checked ? Array.from(new Set(s.visible.concat(key))) : s.visible.filter(x => x !== key); }
+    else if (element.hasAttribute('data-toggle-module')) { const key = element.dataset.toggleModule; s.modules = element.checked ? Array.from(new Set(s.modules.concat(key))) : s.modules.filter(x => x !== key); }
+    else if (element.hasAttribute('data-field')) s[element.dataset.field] = element.value;
+    else return;
+    render(style); save(style);
+  });
+  window.addEventListener('openai:set_globals', function(event) { const globals = event.detail && event.detail.globals; if (globals && Object.prototype.hasOwnProperty.call(globals,'widgetState')) { hydrate(globals.widgetState); Object.keys(names).forEach(render); } });
+  if (globalThis.Tweak) Object.keys(names).forEach(function(style) {
+    const tweak = new Tweak({ container: root.querySelector('[data-style="' + style + '"]'), onChange: function() { render(style); } });
+    tweak.addSelect(state[style], 'density', { label: '信息密度', options: [{ label: '舒适', value: 'comfortable' },{ label: '紧凑', value: 'compact' }] });
+    tweak.addSlider(state[style], 'radius', { label: '模块圆角', min: 0, max: 28, unit: 'px' });
+  });
+})();
+</script>

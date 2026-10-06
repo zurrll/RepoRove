@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.reporove.ActivityLinksTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-06T13:34:17.842Z" hostname="MacBookdeMacBook-Air.local" time="0.181">
+  <properties/>
+  <testcase name="eventsLocatePushForkReleaseAndPrCommentTargets" classname="app.reporove.ActivityLinksTest" time="0.106"/>
+  <testcase name="apiLinksKeepCheckRunSuiteAndWorkflowIdentifiersDistinct" classname="app.reporove.ActivityLinksTest" time="0.007"/>
+  <testcase name="releaseArchiveLinksAndExplicitCustomLayoutSurviveDecoding" classname="app.reporove.ActivityLinksTest" time="0.06"/>
+  <testcase name="notificationsLocateCommentsAndPreserveMissingTargetContext" classname="app.reporove.ActivityLinksTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

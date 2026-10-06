@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.RepoRove" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">#596746</item>
+        <item name="android:windowBackground">#FAF8F2</item>
+    </style>
+</resources>
