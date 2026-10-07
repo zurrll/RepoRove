@@ -12,8 +12,8 @@ android {
         applicationId = "app.reporove"
         minSdk = 29
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.4.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val clientId = providers.gradleProperty("githubOAuthClientId").orElse("").get()
         require(clientId.matches(Regex("[A-Za-z0-9_]*"))) { "Invalid OAuth client ID" }

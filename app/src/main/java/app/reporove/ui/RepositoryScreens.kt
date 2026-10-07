@@ -48,18 +48,18 @@ import app.reporove.data.GitHubRepository
         model.configure(fullName) { app.container.repository.repository(fullName, it) }
         star.configure("$fullName:${account?.id}") { Loaded(app.container.repository.isStarred(fullName), System.currentTimeMillis()) }
     }
-    Column(Modifier.fillMaxSize()) {
-        Resource(state, { model.refresh() }) { repo ->
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+    Resource(state, { model.refresh() }) { repo ->
+        RepositoryLayout(fullName, header = {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         AuthorLink(repo.owner)
-                        Text(repo.name, style = MaterialTheme.typography.headlineSmall)
+                        Text(repo.name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     IconButton(onClick = { nav.search("repo:${repo.fullName}") }) { Icon(Icons.Outlined.Search, "搜索此仓库") }
                     IconButton(onClick = { openUrl(context, repo.htmlUrl) }) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, "在 GitHub 中打开") }
                 }
-                repo.description?.let { Text(it, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyLarge, maxLines = 3) }
+                repo.description?.let { Text(it, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.bodyLarge, maxLines = 3, overflow = TextOverflow.Ellipsis) }
                 RepositoryMetadata(app, repo)
                 if (repo.archived) Note("这个仓库已归档。")
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -81,7 +81,10 @@ import app.reporove.data.GitHubRepository
                     }
                 }
             }
-            ChoiceRow(prefs.repoTabs.map { it.name } + "more", selected.takeIf { it in prefs.repoTabs.map(RepoTab::name) } ?: "more", { if (it == "more") "更多" else RepoTab.valueOf(it).label }, { selected = it })
+        }) {
+            Box(Modifier.fillMaxWidth().testTag("repository-tabs")) {
+                ChoiceRow(prefs.repoTabs.map { it.name } + "more", selected.takeIf { it in prefs.repoTabs.map(RepoTab::name) } ?: "more", { if (it == "more") "更多" else RepoTab.valueOf(it).label }, { selected = it })
+            }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Box(Modifier.weight(1f)) {
                 when (selected) {

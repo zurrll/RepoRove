@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.luminance
@@ -109,7 +110,7 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
             val start = remember { prefs.home.name }
             val snackbar = remember { SnackbarHostState() }
             val title = MainTab.entries.find { it.name == route }?.label ?: when {
-                route.startsWith("repo/") -> "仓库"
+                route.startsWith("repo/") -> entry?.arguments?.getString("name") ?: "仓库"
                 route.startsWith("readme/") -> "README"
                 route.startsWith("code/") -> "代码"
                 route.startsWith("thread/") -> if (entry?.arguments?.getBoolean("pull") == true) "Pull Request" else "Issue"
@@ -150,7 +151,7 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbar) },
                 topBar = {
-                    TopAppBar(title = { Text(title) }, navigationIcon = {
+                    TopAppBar(title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
                         if (!main) IconButton(onClick = navigation::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
                     }, actions = {
                         if (main && route != MainTab.Search.name && (route != MainTab.Profile.name || account == null)) IconButton(onClick = { navigation.root(MainTab.Search) }) { Icon(Icons.Outlined.Search, "搜索") }

@@ -22,6 +22,17 @@ class ReadingAndSearchTest {
         assertEquals("https://raw.githubusercontent.com/a/b/main/assets/pic.png", MarkdownLinks.resolve("/assets/pic.png", "a/b", "main", "docs/README.md", true))
         assertEquals("https://github.com/a/b/blob/main/LICENSE", MarkdownLinks.resolve("../LICENSE", "a/b", "main", "docs/README.md", false))
     }
+    @Test fun tablePresentationRetainsAlignmentAndMergedCellsWithoutActiveStyles() {
+        val html = """<table><tr><th style="text-align: center; background:url(javascript:evil)">Heading</th><td align="right" colspan="2" rowspan="3"><a href="https://github.com/a/b">Link</a><code>value</code><table><tr><td>Nested content</td></tr></table></td></tr></table>"""
+        val result = org.jsoup.Jsoup.parse(ReaderDocument.prepare(html, palette, 1f, "a/b", "main", "README.md").html)
+        assertEquals("center", result.selectFirst("th")!!.attr("align"))
+        val cell = result.selectFirst("td")!!
+        assertEquals("right", cell.attr("align")); assertEquals("2", cell.attr("colspan")); assertEquals("3", cell.attr("rowspan"))
+        assertEquals("https://github.com/a/b", cell.selectFirst("a")!!.attr("href"))
+        assertEquals("value", cell.selectFirst("code")!!.text())
+        assertTrue(result.select(".table-cell > .table-cell").isEmpty())
+        assertFalse(result.body().html().contains("style=")); assertFalse(result.body().html().contains("javascript:"))
+    }
     @Test fun queryBuilderQuotesLanguagesAndReplacesSelectedConflicts() {
         val spec = SearchSpec(SearchKind.Repositories, "cache language:Java archived:true foo:bar", "repo:a/b", mapOf("language" to "C++", "archived" to "false", "label" to "good first issue"))
         assertEquals("cache foo:bar language:C++ archived:false label:\"good first issue\" repo:a/b", spec.query())

@@ -64,7 +64,16 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
     var loadingDocument by remember { mutableStateOf(true) }
     val currentDocument by rememberUpdatedState(document)
     fun measure(view: WebView) {
-        if (!fill && !preview) view.evaluateJavascript("Math.ceil(document.body.getBoundingClientRect().height)") { value -> value.toDoubleOrNull()?.let { height = it.toInt() } }
+        view.evaluateJavascript("""
+            (() => {
+              document.querySelectorAll('[data-scroll-kind]').forEach(block => {
+                const overflow = block.scrollWidth > block.clientWidth + 1;
+                block.dataset.overflow = String(overflow);
+                block.previousElementSibling?.setAttribute('data-overflow', String(overflow));
+              });
+              return Math.ceil(document.body.getBoundingClientRect().height);
+            })()
+        """.trimIndent()) { value -> if (!fill && !preview) value.toDoubleOrNull()?.let { height = it.toInt() } }
     }
     val navigate by rememberUpdatedState<(String) -> Unit> { url -> nav.open(url, app) { openUrl(context, it) } }
     DisposableEffect(Unit) { onDispose { webView?.apply { stopLoading(); destroy() }; webView = null } }
@@ -123,6 +132,9 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
                     }
                 }
                 setOnScrollChangeListener { _, _, y, _, _ -> if (!loadingDocument) readingY = y }
+                addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
+                    if (right - left != oldRight - oldLeft) post { measure(this) }
+                }
                 setOnTouchListener { _, event -> if (event.action == MotionEvent.ACTION_UP) postDelayed({ measure(this) }, 150); false }
             } },
             update = { view ->
@@ -130,12 +142,14 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
                 if (previousDocument != prepared.html) {
                     val body = prepared.html.substringAfter("<body>")
                     val onlyStyle = previousBody == body
-                    previousBody = body; previousDocument = prepared.html
+                    previousBody = body
+                    previousDocument = prepared.html
                     if (onlyStyle) {
                         val css = prepared.html.substringAfter("<style>").substringBefore("</style>")
                         view.evaluateJavascript("document.querySelector('style').textContent=" + org.json.JSONObject.quote(css)) { measure(view) }
                     } else {
-                        restoringY = readingY; loadingDocument = true
+                        restoringY = readingY
+                        loadingDocument = true
                         view.loadDataWithBaseURL("https://reader.reporove.invalid/", prepared.html, "text/html", "UTF-8", null)
                     }
 

@@ -1,0 +1,2 @@
+INSTRUMENTATION_RESULT: result=PASS: R8 APK searches real GitHub data, renders README, collapses and restores repository header with persistent tabs, displays languages, single-row files and release downloads, and opens native organization profile
+INSTRUMENTATION_CODE: -1

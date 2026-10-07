@@ -4,6 +4,9 @@ import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
+import android.view.InputDevice;
+import android.view.MotionEvent;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Log;
@@ -41,6 +44,15 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             click(waitFor("button", "代码"));
             waitFor("text", "根目录"); waitFor("repo", "app"); capture("release-code-list");
+            int expandedTabTop = boundsFor("button", "代码").top;
+            swipe(false);
+            // Compose can retain semantics for clipped header children. Verify the
+            // displayed tabs' movement instead of a hidden child's visibility flag.
+            waitForTabTopAtMost(expandedTabTop - 200);
+            capture("release-collapsed-code");
+            for (int i = 0; i < 6 && boundsFor("button", "代码").top < expandedTabTop - 8; i++) swipe(true);
+            if (boundsFor("button", "代码").top < expandedTabTop - 8) throw new AssertionError("Repository header did not restore");
+            capture("release-restored-code");
             click(waitFor("button", "发布"));
             click(waitFor("button", "下载文件"));
             waitFor("text", "版本说明"); capture("release-notes-first");
@@ -50,7 +62,7 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             click(waitFor("repo", "termux"));
             waitFor("text", "@termux · 组织"); capture("release-profile");
             if (!"app.reporove".contentEquals(getUiAutomation().getRootInActiveWindow().getPackageName())) throw new AssertionError("Profile left the app");
-            result.putString("result", "PASS: R8 APK searches real GitHub data, renders README, displays languages, single-row files and release downloads, and opens native organization profile");
+            result.putString("result", "PASS: R8 APK searches real GitHub data, renders README, collapses and restores repository header with persistent tabs, displays languages, single-row files and release downloads, and opens native organization profile");
             finish(Activity.RESULT_OK, result);
         } catch (Throwable error) {
             capture("release-failure"); result.putString("result", "FAIL"); result.putString("error", Log.getStackTraceString(error)); finish(Activity.RESULT_CANCELED, result);
@@ -81,6 +93,36 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
         if (node.isScrollable()) return node;
         for (int i = 0; i < node.getChildCount(); i++) { AccessibilityNodeInfo found = findScrollable(node.getChild(i)); if (found != null) return found; }
         return null;
+    }
+    private Rect boundsFor(String mode, String value) {
+        AccessibilityNodeInfo node = waitFor(mode, value);
+        node.refresh();
+        Rect bounds = new Rect(); node.getBoundsInScreen(bounds);
+        if (!node.isVisibleToUser() || bounds.isEmpty()) throw new AssertionError("Missing visible " + mode + ": " + value);
+        return bounds;
+    }
+    private void waitForTabTopAtMost(int maximumTop) {
+        long deadline = SystemClock.elapsedRealtime() + 5000;
+        do {
+            if (boundsFor("button", "代码").top <= maximumTop) return;
+            SystemClock.sleep(300);
+        } while (SystemClock.elapsedRealtime() < deadline);
+        throw new AssertionError("Repository tabs did not move up when collapsing the header");
+    }
+    private void swipe(boolean down) {
+        Rect bounds = new Rect(); getUiAutomation().getRootInActiveWindow().getBoundsInScreen(bounds);
+        float x = bounds.centerX(), top = bounds.top + bounds.height() * .2f, bottom = bounds.top + bounds.height() * .86f;
+        float start = down ? top : bottom, end = down ? bottom : top;
+        long downTime = SystemClock.uptimeMillis();
+        for (int step = 0; step <= 24; step++) {
+            int action = step == 0 ? MotionEvent.ACTION_DOWN : step == 24 ? MotionEvent.ACTION_UP : MotionEvent.ACTION_MOVE;
+            MotionEvent event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, x, start + (end - start) * step / 24f, 0);
+            event.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+            try { if (!getUiAutomation().injectInputEvent(event, true)) throw new AssertionError("Swipe was not accepted"); }
+            finally { event.recycle(); }
+            SystemClock.sleep(25);
+        }
+        SystemClock.sleep(1000);
     }
     private AccessibilityNodeInfo waitForWithScroll(String mode, String value) {
         long deadline = SystemClock.elapsedRealtime() + 45000;

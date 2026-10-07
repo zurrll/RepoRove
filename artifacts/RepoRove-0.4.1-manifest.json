@@ -1,0 +1,81 @@
+{
+  "package": "app.reporove",
+  "versionName": "0.4.1",
+  "versionCode": 5,
+  "minSdk": 29,
+  "targetSdk": 36,
+  "artifact": "RepoRove-0.4.1-preview.apk",
+  "bytes": 4689293,
+  "sha256": "dcbcdd26ec6e491e2b0973847e63a466e28c8d53d362d68106b29abe942275b2",
+  "r8": true,
+  "signing": "development; compatible with 0.1.0, 0.2.0, 0.3.0 and 0.4.0 previews",
+  "certificateSha256": "4d2b215aa20c8c0d40a3d1b8ceb6a65527d4bc2d12aa84b3da145b20c99d2ba3",
+  "validation": {
+    "unit": {
+      "tests": 33,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "nativeFixtureTestsPassed": 21,
+    "nativeFixtureTestScope": "Full suite before final nested-table ownership adjustment; adjustment covered by unit tests and final-code narrow reader test.",
+    "narrowReader": {
+      "testsPassed": 1,
+      "widthDp": 320,
+      "emulatorPixels": "840x1920",
+      "themes": [
+        "Clear light",
+        "Paper dark at textScale 1.2"
+      ],
+      "horizontalTouchVerified": true,
+      "themeChangeMarkupRequestReuseVerified": true
+    },
+    "repositoryHeaderCollapseRestoreVerified": true,
+    "persistentRepositoryTabsVerified": true,
+    "emulatorApi": 35,
+    "emulatorAbi": "arm64-v8a",
+    "lint": {
+      "debug": {
+        "Error": 0,
+        "Warning": 39,
+        "Hint": 3
+      },
+      "release": {
+        "Error": 0,
+        "Warning": 39,
+        "Hint": 3
+      }
+    },
+    "realGitHubR8Smoke": "PASS",
+    "realGitHubR8SmokeScope": [
+      "repository search",
+      "README",
+      "repository header collapse and restoration",
+      "persistent tabs",
+      "languages",
+      "file list",
+      "release notes and download list",
+      "native organization profile"
+    ],
+    "publicNetworkFileDownloadsRerun": false,
+    "signatureVerified": "v3",
+    "zipAlignmentVerified": "16 KB"
+  },
+  "physicalTargetDeviceVerified": false,
+  "privateDownloadVerified": false,
+  "realAccountPermissionsVerified": false,
+  "catalogs": {
+    "languages.json": {
+      "source": "https://github.com/github-linguist/linguist",
+      "revision": "5fbdfcb8133be2bed88bf3ce62b2335f50474525",
+      "items": 836
+    },
+    "explore.json": {
+      "source": "https://github.com/github/explore",
+      "revision": "c8d7bc516928a4f17845b767884a80cc53affd57",
+      "topics": 1278,
+      "collections": 112
+    }
+  },
+  "implementationAndLimitations": "../0.4.1布局与内容适配.md"
+}

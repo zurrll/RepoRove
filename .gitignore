@@ -52,3 +52,9 @@ local.properties
 !/artifacts/release-smoke-0.4.0.log
 !/artifacts/signature-0.4.0.log
 !/artifacts/alignment-0.4.0.log
+!/artifacts/final-build-0.4.1.log
+!/artifacts/native-regression-0.4.1.log
+!/artifacts/reader-narrow-0.4.1.log
+!/artifacts/release-smoke-0.4.1.log
+!/artifacts/signature-0.4.1.log
+!/artifacts/alignment-0.4.1.log

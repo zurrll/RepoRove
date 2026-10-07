@@ -39,6 +39,7 @@ class CoreFlowTest {
     @Volatile private var starred = false
     @Volatile private var showCi = false
     @Volatile private var showReviews = false
+    @Volatile private var responsiveDocument = false
     private val requestedPaths = CopyOnWriteArrayList<String>()
     private val repository = """{"id":71,"name":"paper-reader","full_name":"demo/paper-reader","owner":{"id":9,"login":"demo"},"description":"A quiet place to read code and discover useful projects.","language":"Kotlin","stargazers_count":4200,"forks_count":210,"open_issues_count":12,"default_branch":"main","html_url":"https://github.com/demo/paper-reader","pushed_at":"2026-10-05T12:00:00Z","topics":["android","productivity"]}"""
     private val release = """{"id":5,"tag_name":"v1.2.0","name":"Paper Reader 1.2","body":"## Changes\nFaster browsing and a calmer reading experience.","published_at":"2026-10-04T00:00:00Z","html_url":"https://github.com/demo/paper-reader/releases/tag/v1.2.0","zipball_url":"https://api.github.com/repos/demo/paper-reader/zipball/v1.2.0","tarball_url":"https://api.github.com/repos/demo/paper-reader/tarball/v1.2.0","assets":[{"id":500,"name":"reader-arm64.apk","size":1024,"content_type":"application/vnd.android.package-archive","browser_download_url":"https://github.com/demo/paper-reader/releases/download/v1.2.0/reader-arm64.apk"}]}"""
@@ -54,6 +55,21 @@ class CoreFlowTest {
                 requestedPaths += path
                 if (path.startsWith("/search/")) queries += url.queryParameter("q").orEmpty()
                 val body = when {
+                    path == "/markdown" && responsiveDocument -> {
+                        markupRequests.incrementAndGet()
+                        val headings = (1..8).joinToString("") { "<th align=\"${if (it == 2) "right" else "left"}\">Column $it</th>" }
+                        val cells = (1..8).joinToString("") { "<td>${if (it == 2) "<code>${"long_identifier_".repeat(30)}</code>" else "Readable table content ".repeat(8)}</td>" }
+                        return MockResponse().setHeader("Content-Type", "text/html").setBody("""
+                            <h1>Mobile content layout</h1>
+                            <p><a href="https://github.com/demo/paper-reader">${"long-link-segment-".repeat(30)}</a></p>
+                            <table id="wide-table"><thead><tr>$headings</tr></thead><tbody><tr>$cells</tr></tbody></table>
+                            <table id="prose-table"><tr><th>Feature</th><th style="text-align:center">Explanation</th></tr><tr><td>Reading</td><td>${"A long explanation should wrap into readable paragraphs. ".repeat(12)}</td></tr></table>
+                            <table id="small-table"><tr><th>Item</th><th>State</th></tr><tr><td>A</td><td>Ready</td></tr></table>
+                            <div class="highlight highlight-source-kotlin"><pre><code>${"val longName = ".repeat(50)}</code></pre></div>
+                            <img width="1200" height="600" alt="Wide illustration">
+                            <details><summary>More information</summary><p>Expanded content remains in the reading flow.</p></details>
+                        """.trimIndent())
+                    }
                     path == "/markdown" && request.body.clone().readUtf8().contains("```diff") -> return MockResponse().setHeader("Content-Type", "text/html").setBody("<pre><code>@@ -1 +1 @@\n-old\n+new</code></pre>")
                     path == "/markdown" && request.body.clone().readUtf8().contains("Exact line comment 77") -> return MockResponse().setHeader("Content-Type", "text/html").setBody("<p>Exact line comment 77</p>")
                     path == "/markdown" && request.body.clone().readUtf8().contains("Exact review target 99") -> return MockResponse().setHeader("Content-Type", "text/html").setBody("<p>Exact review target 99</p>")
@@ -165,6 +181,35 @@ class CoreFlowTest {
         check(latch.await(5, TimeUnit.SECONDS))
         return answer
     }
+    private fun swipeWeb(startX: Float, startY: Float, endX: Float, endY: Float) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val painted = CountDownLatch(1)
+        instrumentation.runOnMainSync {
+            findWeb(activity?.window?.decorView)!!.postVisualStateCallback(2, object : WebView.VisualStateCallback() {
+                override fun onComplete(requestId: Long) { painted.countDown() }
+            })
+        }
+        check(painted.await(10, TimeUnit.SECONDS))
+        // JS scroll callbacks precede compositor updates; input must target the painted table.
+        android.os.SystemClock.sleep(500)
+        val location = IntArray(2)
+        var width = 0
+        instrumentation.runOnMainSync { val web = findWeb(activity?.window?.decorView)!!; web.getLocationOnScreen(location); width = web.width }
+        val scale = width / js("window.innerWidth").toFloat()
+        val downTime = android.os.SystemClock.uptimeMillis()
+        fun event(action: Int, step: Int) {
+            val fraction = step / 20f
+            val input = android.view.MotionEvent.obtain(downTime, android.os.SystemClock.uptimeMillis(), action,
+                location[0] + (startX + (endX - startX) * fraction) * scale,
+                location[1] + (startY + (endY - startY) * fraction) * scale, 0)
+            input.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+            try { check(instrumentation.uiAutomation.injectInputEvent(input, true)) } finally { input.recycle() }
+        }
+        event(android.view.MotionEvent.ACTION_DOWN, 0)
+        for (step in 1..20) { android.os.SystemClock.sleep(20); event(android.view.MotionEvent.ACTION_MOVE, step) }
+        event(android.view.MotionEvent.ACTION_UP, 20)
+        instrumentation.waitForIdleSync()
+    }
     private fun waitForDocument() { compose.waitUntil(15000) { js("document.documentElement.clientHeight > 500 && !!document.querySelector('pre')") == "true" } }
     private fun anyDocumentMatches(script: String): Boolean {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -182,6 +227,79 @@ class CoreFlowTest {
         instrumentation.runOnMainSync { views.forEach { view -> view.evaluateJavascript(script) { if (it == "true") matched.set(true); done.countDown() } } }
         check(done.await(5, TimeUnit.SECONDS))
         return matched.get()
+    }
+
+    @Test fun repositoryHeaderScrollsAwayAndTabsRemainAvailable() {
+        launch(); compose.onNodeWithText("paper-reader").performClick(); waitFor("阅读全文")
+        compose.waitUntil(15000) { anyDocumentMatches("!!document.querySelector('pre')") }
+        val header = compose.onNodeWithTag("repository-header")
+        val tabs = compose.onNodeWithTag("repository-tabs")
+        val expandedHeight = header.fetchSemanticsNode().boundsInRoot.height
+        val expandedTabsTop = tabs.fetchSemanticsNode().boundsInRoot.top
+        assertTrue(expandedHeight > 0f)
+        screenshot("repository-expanded")
+        // Start inside the HTML preview, as a reader would, rather than on a title row.
+        compose.onNodeWithTag("overview-list").performTouchInput { swipeUp(startY = height * .55f, endY = height * .02f, durationMillis = 700) }
+        compose.waitUntil(5000) { header.fetchSemanticsNode().boundsInRoot.height < 1f }
+        assertTrue(tabs.fetchSemanticsNode().boundsInRoot.top < expandedTabsTop - expandedHeight * .9f)
+        compose.onNodeWithText("代码", substring = false).assertIsDisplayed().performClick()
+        waitFor("根目录"); compose.onNodeWithText("src", substring = false).assertIsDisplayed()
+        assertTrue(header.fetchSemanticsNode().boundsInRoot.height < 1f)
+        screenshot("repository-collapsed-code")
+        // Short lists must restore the header too; no content scroll is required.
+        compose.onNodeWithTag("repository-layout").performTouchInput { swipeDown(durationMillis = 700) }
+        compose.waitUntil(5000) { header.fetchSemanticsNode().boundsInRoot.height >= expandedHeight - 1f }
+        compose.onNodeWithContentDescription("查看语言占比").assertIsDisplayed()
+        screenshot("repository-expanded-code")
+        header.performTouchInput { swipeUp(durationMillis = 700) }
+        compose.waitUntil(5000) { header.fetchSemanticsNode().boundsInRoot.height < 1f }
+        compose.onNodeWithText("发布", substring = false).performClick(); waitFor("下载文件")
+        compose.onNodeWithText("下载文件", substring = true).performClick(); waitFor("版本说明")
+        compose.onNodeWithContentDescription("返回").performClick(); waitFor("发布版本")
+        assertTrue(header.fetchSemanticsNode().boundsInRoot.height < 1f)
+    }
+
+    @Test fun tablesCodeAndLongContentFitTheViewportAcrossThemes() {
+        responsiveDocument = true
+        launch(); compose.onNodeWithText("paper-reader").performClick(); waitFor("阅读全文")
+        compose.onAllNodesWithText("阅读全文").onFirst().performClick()
+        compose.waitUntil(15000) { js("document.querySelector('#wide-table')?.parentElement.dataset.overflow === 'true'") == "true" }
+        val fits = """(() => {
+            const table = document.querySelector('#wide-table').parentElement;
+            const prose = document.querySelector('#prose-table td:last-child .table-cell');
+            const small = document.querySelector('#small-table').parentElement;
+            const pre = document.querySelector('pre');
+            const viewport = document.documentElement.clientWidth;
+            return document.documentElement.scrollWidth <= viewport + 1
+              && table.clientWidth < table.scrollWidth
+              && table.getBoundingClientRect().width <= viewport
+              && prose.getBoundingClientRect().width <= parseFloat(getComputedStyle(prose).fontSize) * 22 + 1
+              && prose.getBoundingClientRect().height > 80
+              && getComputedStyle(document.querySelector('#prose-table th:last-child')).textAlign === 'center'
+              && small.dataset.overflow === 'false'
+              && getComputedStyle(small.previousElementSibling).display === 'none'
+              && getComputedStyle(table.previousElementSibling).display !== 'none'
+              && pre.scrollWidth > pre.clientWidth
+              && document.querySelector('img').getBoundingClientRect().width <= viewport;
+        })()""".trimIndent()
+        assertEquals("true", js(fits))
+        js("document.querySelector('#wide-table').scrollIntoView();true")
+        val viewport = js("window.innerWidth").toFloat()
+        swipeWeb(viewport - 30f, 35f, 35f, 35f)
+        compose.waitUntil(5000) { js("document.querySelector('#wide-table').parentElement.scrollLeft > 0 && window.scrollX === 0") == "true" }
+        assertEquals("true", js("(() => { const p=document.querySelector('pre'); p.scrollLeft=100; return p.scrollLeft>0 && window.scrollX===0; })()"))
+        js("document.querySelector('#wide-table').parentElement.scrollLeft=0;document.querySelector('#wide-table').parentElement.previousElementSibling.scrollIntoView();true")
+        screenshot("reader-responsive-light")
+        val requests = markupRequests.get()
+        assertTrue(requests > 0)
+        runBlocking { container.local.updatePreferences { it.copy(themeId = ThemeId.Paper, theme = ThemeMode.Dark, textScale = 1.2f) } }
+        compose.waitUntil(15000) { js("getComputedStyle(document.body).backgroundColor").contains("25, 29, 23") && js("document.querySelector('#wide-table')?.parentElement.dataset.overflow === 'true'") == "true" }
+        assertEquals("true", js(fits))
+        assertEquals(requests, markupRequests.get())
+        js("document.querySelector('#wide-table').parentElement.previousElementSibling.scrollIntoView();true")
+        screenshot("reader-responsive-dark")
+        js("document.querySelector('#prose-table').parentElement.previousElementSibling.scrollIntoView();true")
+        screenshot("reader-responsive-prose")
     }
 
     @Test fun readmeLinksCopyAndOwnerOpenNativeProfile() {
@@ -422,6 +540,7 @@ class CoreFlowTest {
         assertTrue(requestedPaths.any { it.endsWith("/pulls/comments/77") })
         compose.onNodeWithContentDescription("返回").performClick(); waitFor("Review notification")
         compose.onNodeWithText("Review notification").performClick(); waitFor("此次评审")
+        waitFor("请求修改")
         compose.onNodeWithText("请求修改").assertIsDisplayed()
         compose.waitUntil(15000) { anyDocumentMatches("document.body?.textContent.includes('Exact review target 99') && Math.abs(document.documentElement.clientHeight-Math.max(48,document.body.getBoundingClientRect().height))<2") }
         assertTrue(requestedPaths.any { it.endsWith("/pulls/3/reviews/99") })

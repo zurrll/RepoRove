@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.reporove.PreferencesTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-07T12:06:24.829Z" hostname="MacBookdeMacBook-Air.local" time="0.003">
+  <properties/>
+  <testcase name="malformedReadingAndInterestSettingsAreNormalized" classname="app.reporove.PreferencesTest" time="0.001"/>
+  <testcase name="hiddenHomeFallsBackAndNavigationNeverBecomesEmpty" classname="app.reporove.PreferencesTest" time="0.0"/>
+  <testcase name="searchFiltersRespectSelectedContentType" classname="app.reporove.PreferencesTest" time="0.001"/>
+  <testcase name="allRepositorySectionsCanMoveToMoreAndEmptyOverviewIsPreserved" classname="app.reporove.PreferencesTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.reporove.ContentTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-07T12:06:24.257Z" hostname="MacBookdeMacBook-Air.local" time="0.024">
+  <properties/>
+  <testcase name="base64LineBreaksPreserveSourceText" classname="app.reporove.ContentTest" time="0.014"/>
+  <testcase name="markdownResourcesResolveRelativeToActualReadme" classname="app.reporove.ContentTest" time="0.004"/>
+  <testcase name="sparsePublicEventsAndMergedPullsDecodeCorrectly" classname="app.reporove.ContentTest" time="0.004"/>
+  <testcase name="rejectTraversal" classname="app.reporove.ContentTest" time="0.0"/>
+  <testcase name="rejectBinaryPreview" classname="app.reporove.ContentTest" time="0.0"/>
+  <testcase name="unicodePathsAndBranchNamesEncodeWithoutLosingSeparators" classname="app.reporove.ContentTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
