@@ -1,0 +1,62 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.13/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build
+> Task :smoke-test:preBuild UP-TO-DATE
+> Task :smoke-test:preDebugBuild UP-TO-DATE
+> Task :smoke-test:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :smoke-test:javaPreCompileDebug UP-TO-DATE
+> Task :smoke-test:checkDebugAarMetadata UP-TO-DATE
+> Task :smoke-test:generateDebugResValues UP-TO-DATE
+> Task :smoke-test:mapDebugSourceSetPaths UP-TO-DATE
+> Task :smoke-test:generateDebugResources UP-TO-DATE
+> Task :smoke-test:mergeDebugResources UP-TO-DATE
+> Task :smoke-test:packageDebugResources UP-TO-DATE
+> Task :smoke-test:parseDebugLocalResources UP-TO-DATE
+> Task :smoke-test:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :smoke-test:extractDeepLinksDebug UP-TO-DATE
+> Task :smoke-test:processDebugMainManifest
+> Task :smoke-test:processDebugManifest
+> Task :smoke-test:mergeDebugShaders UP-TO-DATE
+> Task :smoke-test:compileDebugShaders NO-SOURCE
+> Task :smoke-test:generateDebugAssets UP-TO-DATE
+> Task :smoke-test:mergeDebugAssets UP-TO-DATE
+> Task :smoke-test:compressDebugAssets UP-TO-DATE
+> Task :smoke-test:desugarDebugFileDependencies UP-TO-DATE
+> Task :smoke-test:processDebugJavaRes NO-SOURCE
+> Task :smoke-test:mergeDebugJavaResource UP-TO-DATE
+> Task :smoke-test:checkDebugDuplicateClasses UP-TO-DATE
+> Task :smoke-test:mergeExtDexDebug UP-TO-DATE
+> Task :smoke-test:mergeLibDexDebug UP-TO-DATE
+> Task :smoke-test:mergeDebugJniLibFolders UP-TO-DATE
+> Task :smoke-test:mergeDebugNativeLibs NO-SOURCE
+> Task :smoke-test:stripDebugDebugSymbols NO-SOURCE
+> Task :smoke-test:validateSigningDebug UP-TO-DATE
+> Task :smoke-test:writeDebugAppMetadata UP-TO-DATE
+> Task :smoke-test:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :smoke-test:preDebugAndroidTestBuild SKIPPED
+> Task :smoke-test:generateDebugAndroidTestResValues UP-TO-DATE
+> Task :smoke-test:extractProguardFiles UP-TO-DATE
+> Task :smoke-test:preDebugUnitTestBuild UP-TO-DATE
+> Task :smoke-test:processDebugManifestForPackage
+> Task :smoke-test:processDebugResources
+> Task :smoke-test:compileDebugJavaWithJavac UP-TO-DATE
+> Task :smoke-test:dexBuilderDebug UP-TO-DATE
+> Task :smoke-test:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :smoke-test:mergeProjectDexDebug UP-TO-DATE
+> Task :smoke-test:bundleDebugClassesToCompileJar UP-TO-DATE
+> Task :smoke-test:generateDebugAndroidTestLintModel
+> Task :smoke-test:generateDebugLintReportModel
+> Task :smoke-test:generateDebugUnitTestLintModel
+> Task :smoke-test:packageDebug
+> Task :smoke-test:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :smoke-test:assembleDebug
+> Task :smoke-test:lintAnalyzeDebug
+> Task :smoke-test:lintAnalyzeDebugAndroidTest
+> Task :smoke-test:lintAnalyzeDebugUnitTest
+
+> Task :smoke-test:lintReportDebug
+Wrote HTML report to file:///Users/macbook/xm/github-app/smoke-test/build/reports/lint-results-debug.html
+
+> Task :smoke-test:lintDebug
+
+BUILD SUCCESSFUL in 9s
+43 actionable tasks: 13 executed, 30 up-to-date

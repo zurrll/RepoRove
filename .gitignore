@@ -64,3 +64,4 @@ local.properties
 !/artifacts/release-smoke-0.5.0.log
 !/artifacts/signature-0.5.0.log
 !/artifacts/alignment-0.5.0.log
+!/artifacts/smoke-checks-0.5.0.log

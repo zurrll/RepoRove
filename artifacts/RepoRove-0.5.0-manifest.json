@@ -48,7 +48,11 @@
       "About version history"
     ],
     "signatureVerified": "v3",
-    "zipAlignmentVerified": "16 KB"
+    "zipAlignmentVerified": "16 KB",
+    "smokeToolLint": {
+      "Error": 0,
+      "Warning": 2
+    }
   },
   "physicalTargetDeviceVerified": false,
   "realAccountPermissionsVerified": false,
