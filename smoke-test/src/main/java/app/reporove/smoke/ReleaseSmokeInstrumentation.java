@@ -21,7 +21,11 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
+            runOnMainSync(() -> ((android.content.ClipboardManager) getTargetContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE))
+                .setPrimaryClip(android.content.ClipData.newPlainText("GitHub link", "https://github.com/termux/termux-app")));
             getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            waitFor("text", "打开剪贴板中的 GitHub 链接？"); capture("release-clipboard-prompt");
+            click(waitFor("button", "暂不"));
             click(waitFor("desc", "搜索"));
             capture("release-search-start");
             AccessibilityNodeInfo input = waitFor("class", "android.widget.EditText");
@@ -62,11 +66,47 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             click(waitFor("repo", "termux"));
             waitFor("text", "@termux · 组织"); capture("release-profile");
             if (!"app.reporove".contentEquals(getUiAutomation().getRootInActiveWindow().getPackageName())) throw new AssertionError("Profile left the app");
-            result.putString("result", "PASS: R8 APK searches real GitHub data, renders README, collapses and restores repository header with persistent tabs, displays languages, single-row files and release downloads, and opens native organization profile");
+            // Save with the production foreground service, then open the snapshot with no active network.
+            getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+            click(waitFor("button", "保存到 App"));
+            click(waitFor("button", "离线保存资料 / 源码"));
+            waitFor("text", "保存到本机"); click(waitFor("button", "保存"));
+            // The accessible app-bar button appears after the save dialog closes.
+            // A global Back sent immediately would only dismiss the departing dialog.
+            click(waitFor("desc", "返回"));
+            click(waitFor("button", "项目库"));
+            click(waitFor("button", "离线与最近阅读"));
+            waitFor("button", "阅读");
+            shell("svc wifi disable");
+            shell("svc data disable");
+            android.net.ConnectivityManager connectivity = getTargetContext().getSystemService(android.net.ConnectivityManager.class);
+            long networkDeadline = SystemClock.elapsedRealtime() + 10000;
+            while (connectivity.getActiveNetwork() != null && SystemClock.elapsedRealtime() < networkDeadline) SystemClock.sleep(250);
+            if (connectivity.getActiveNetwork() != null) throw new AssertionError("Network remained active during the offline test");
+            click(waitFor("button", "阅读"));
+            waitFor("class", "android.webkit.WebView"); waitFor("text", "Termux"); capture("release-offline-readme");
+            click(waitFor("button", "源码"));
+            click(waitFor("button", "app")); click(waitFor("button", "src")); click(waitFor("button", "main")); click(waitFor("button", "AndroidManifest.xml"));
+            waitFor("text", "manifest"); capture("release-offline-code");
+            click(waitFor("desc", "文件树")); waitFor("text", "文件树"); capture("release-offline-tree");
+            getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+            click(waitFor("desc", "返回"));
+            click(waitFor("button", "删除")); waitFor("text", "删除离线快照？"); click(waitFor("button", "删除"));
+            waitFor("text", "尚未保存离线仓库");
+            getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+            click(waitFor("desc", "我的")); click(waitFor("desc", "设置")); click(waitFor("button", "关于"));
+            click(waitFor("button", "版本更新记录")); waitFor("text", "0.5.0 · 当前"); capture("release-version-history");
+            shell("svc wifi enable");
+            shell("svc data enable");
+            result.putString("result", "PASS: R8 APK prompts for clipboard links, saves a real GitHub snapshot with production foreground service, opens README and code with no active network, opens the file tree, deletes the snapshot, shows version history, and passes existing search/header/release/profile flows");
             finish(Activity.RESULT_OK, result);
         } catch (Throwable error) {
-            capture("release-failure"); result.putString("result", "FAIL"); result.putString("error", Log.getStackTraceString(error)); finish(Activity.RESULT_CANCELED, result);
+            shell("svc wifi enable"); shell("svc data enable"); capture("release-failure"); result.putString("result", "FAIL"); result.putString("error", Log.getStackTraceString(error)); finish(Activity.RESULT_CANCELED, result);
         }
+    }
+    private void shell(String command) {
+        try (android.os.ParcelFileDescriptor result = getUiAutomation().executeShellCommand(command); java.io.FileInputStream input = new java.io.FileInputStream(result.getFileDescriptor())) { while (input.read() >= 0) {} }
+        catch (Exception error) { throw new RuntimeException(error); }
     }
     private AccessibilityNodeInfo find(AccessibilityNodeInfo node, String mode, String value) {
         if (node == null) return null;

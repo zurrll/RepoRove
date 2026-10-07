@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.first
     }
     LazyColumn(Modifier.fillMaxSize()) {
         item { SectionTitle("保存与管理项目", "下载", nav::downloads) }
+        item { ActionRow("离线与最近阅读", "本机仓库资料和源码") { nav.offlineLibrary() } }
         item { ChoiceRow(listOf("稍后看", "我的仓库", "Star"), section, { it }, { section = it }) }
         if (section == "稍后看") item { Note("保存准备阅读的项目；持续跟踪与管理在动态页。") }
         if ((section == "Star" || section == "我的仓库") && account == null) item { LoginRequired(nav) }

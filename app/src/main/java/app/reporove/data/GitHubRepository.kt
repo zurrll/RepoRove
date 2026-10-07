@@ -34,6 +34,8 @@ class GitHubRepository(
     private data class Session(val api: GitHubApi, val scope: String, val user: User?)
     private val stored = credentials.read()
     @Volatile private var session = newSession(stored)
+    private val scopeState = MutableStateFlow(session.scope)
+    val sessionScope = scopeState.asStateFlow()
     private val accountState = MutableStateFlow(stored?.user)
     val account = accountState.asStateFlow()
     private val revisionState = MutableStateFlow(0L)
@@ -42,6 +44,10 @@ class GitHubRepository(
         if (user != null) value else value.copy(later = value.later.filterNot(Repository::isPrivate), following = value.following.filterNot(Repository::isPrivate))
     }
     private val authMutex = Mutex()
+    var beforeAccountChange: suspend () -> Unit = {}
+    data class BoundSource(val api: GitHubApi, val scope: String, val active: () -> Boolean)
+    fun boundSource(): BoundSource { val current = session; return BoundSource(current.api, current.scope) { session === current } }
+    val scope: String get() = session.scope
 
     suspend fun login(rawToken: String) = authMutex.withLock {
         val token = rawToken.trim()
@@ -49,14 +55,18 @@ class GitHubRepository(
         val user = apiFactory(token).me()
         val account = StoredAccount(token, user)
         withContext(Dispatchers.IO) { credentials.save(account) }
+        beforeAccountChange()
         local.removePrivateCollections()
         session = newSession(account)
+        scopeState.value = session.scope
         accountState.value = user
     }
 
     suspend fun logout() = authMutex.withLock {
+        beforeAccountChange()
         withContext(Dispatchers.IO) { credentials.clear() }
         session = newSession(null)
+        scopeState.value = session.scope
         local.removePrivateCollections()
         cache.clear()
         accountState.value = null
@@ -268,13 +278,13 @@ class GitHubRepository(
         requireLogin()
         val (owner, repo) = parts(fullName)
         (if (value) session.api.star(owner, repo) else session.api.unstar(owner, repo)).requireSuccess()
-        cache.clear()
+        cache.invalidate(session.scope) { it == "repo:$fullName" || it.startsWith("stars:") || it.startsWith("all-stars:") || it.startsWith("public-stars:") }
         revisionState.value++
     }
 
     suspend fun notifications(all: Boolean, page: Int, refresh: Boolean = false): Loaded<List<Notification>> { requireLogin(); return read("inbox:$all:$page", refresh) { it.notifications(all, page) } }
-    suspend fun markRead(id: String) { requireLogin(); session.api.readNotification(id).requireSuccess(); cache.clear() }
-    suspend fun complete(id: String) { requireLogin(); session.api.completeNotification(id).requireSuccess(); cache.clear() }
+    suspend fun markRead(id: String) { requireLogin(); session.api.readNotification(id).requireSuccess(); cache.invalidate(session.scope) { it.startsWith("inbox:") } }
+    suspend fun complete(id: String) { requireLogin(); session.api.completeNotification(id).requireSuccess(); cache.invalidate(session.scope) { it.startsWith("inbox:") } }
 
     suspend fun feed(followingUsers: Boolean, page: Int = 1, refresh: Boolean = false): Loaded<List<Event>> {
         if (followingUsers) {

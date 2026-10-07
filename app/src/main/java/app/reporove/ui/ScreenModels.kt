@@ -99,7 +99,7 @@ class ResourceModel<T> : ViewModel() {
         job = viewModelScope.launch {
             try {
                 val result = fetch(force)
-                if (generation == requestGeneration) mutable.value = LoadState.Ready(result.data, result.offline)
+                if (generation == requestGeneration) mutable.value = LoadState.Ready(result.data, result.offline, result.cachedAt)
             } catch (e: CancellationException) { throw e } catch (e: Exception) {
                 if (generation == requestGeneration) mutable.value = LoadState.Failed(userMessage(e))
             }

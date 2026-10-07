@@ -1,0 +1,59 @@
+{
+  "package": "app.reporove",
+  "versionName": "0.5.0",
+  "versionCode": 6,
+  "date": "2026-10-08",
+  "minSdk": 29,
+  "targetSdk": 36,
+  "artifact": "RepoRove-0.5.0-preview.apk",
+  "bytes": 4914839,
+  "sha256": "b313d2228e95ad75b47b8940371abf77e0f5cdf0493f8d601353b8da75ecea19",
+  "r8": true,
+  "signing": "development; compatible with 0.1.0 through 0.4.1 previews",
+  "certificateSha256": "4d2b215aa20c8c0d40a3d1b8ceb6a65527d4bc2d12aa84b3da145b20c99d2ba3",
+  "validation": {
+    "unit": {
+      "tests": 46,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "nativeFixtureTestsPassed": 25,
+    "emulatorApi": 35,
+    "emulatorAbi": "arm64-v8a",
+    "emulatorPixels": "1080x2400",
+    "lint": {
+      "debug": {
+        "Warning": 43,
+        "Hint": 3,
+        "Error": 0
+      },
+      "release": {
+        "Warning": 43,
+        "Hint": 3,
+        "Error": 0
+      }
+    },
+    "realGitHubR8Smoke": "PASS",
+    "realGitHubR8SmokeScope": [
+      "clipboard link confirmation",
+      "repository search and README",
+      "header collapse and restoration",
+      "language composition and file list",
+      "release notes and downloads list",
+      "native organization profile",
+      "production foreground service saving real termux/termux-app snapshot",
+      "README, code and file tree opened with Wi-Fi and mobile data disabled and no active network",
+      "snapshot deletion",
+      "About version history"
+    ],
+    "signatureVerified": "v3",
+    "zipAlignmentVerified": "16 KB"
+  },
+  "physicalTargetDeviceVerified": false,
+  "realAccountPermissionsVerified": false,
+  "paidAiServiceVerified": false,
+  "translationValidation": "deterministic HTTP contract, DOM preservation, cancellation/cache/privacy and native selection fixture tests; no paid provider call",
+  "apkUploaded": false,
+  "implementationAndLimitations": "../0.5.0离线阅读与翻译实现.md"
+}

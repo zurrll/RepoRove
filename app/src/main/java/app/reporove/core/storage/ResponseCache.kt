@@ -16,7 +16,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
-@Serializable private data class Envelope(val savedAt: Long, val payload: JsonElement)
+@Serializable private data class Envelope(val savedAt: Long, val payload: JsonElement, val key: String? = null)
 
 class ResponseCache(private val directory: File, private val maxBytes: Long = 40L * 1024 * 1024) {
     private val mutex = Mutex()
@@ -39,7 +39,7 @@ class ResponseCache(private val directory: File, private val maxBytes: Long = 40
                 val target = file(scope, key)
                 target.parentFile?.mkdirs()
                 val temporary = File(target.parentFile, target.name + ".tmp")
-                temporary.writeText(AppJson.encodeToString(Envelope(System.currentTimeMillis(), AppJson.encodeToJsonElement(serializer, value))))
+                temporary.writeText(AppJson.encodeToString(Envelope(System.currentTimeMillis(), AppJson.encodeToJsonElement(serializer, value), key)))
                 Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
                 val files = directory.walkTopDown().filter { it.isFile }.toList().sortedBy(File::lastModified)
                 var size = files.sumOf(File::length)
@@ -49,6 +49,18 @@ class ResponseCache(private val directory: File, private val maxBytes: Long = 40
                     if (old.delete()) size -= length
                 }
             } catch (_: IOException) { /* Caching failure must not discard a successful response. */ }
+        }
+    }
+
+    suspend fun invalidate(scope: String, predicate: (String) -> Boolean) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            File(directory, digest(scope)).listFiles()?.filter { it.extension == "json" }?.forEach { entry ->
+                try {
+                    val envelope = AppJson.decodeFromString<Envelope>(entry.readText())
+                    // Pre-v0.5 envelopes have no key; retire these once rather than retain stale mutations.
+                    if (envelope.key == null || predicate(envelope.key)) entry.delete()
+                } catch (_: Exception) { entry.delete() }
+            }
         }
     }
 

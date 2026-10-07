@@ -17,6 +17,7 @@ enum class ThemeId(val label: String) { Clear("清晰"), Paper("纸感") }
 @Serializable
 data class Preferences(
     val schemaVersion: Int = 3,
+    val clipboardLinks: Boolean = true,
     val tabs: List<MainTab> = listOf(MainTab.Discover, MainTab.Feed, MainTab.Inbox, MainTab.Library),
     val home: MainTab = MainTab.Discover,
     val repoTabs: List<RepoTab> = listOf(RepoTab.Overview, RepoTab.Code, RepoTab.Issues, RepoTab.Pulls, RepoTab.Releases),
@@ -70,3 +71,5 @@ object SearchQueries {
 
     fun discovery(topic: String?): String = topic?.takeIf { it.matches(Regex("[a-z0-9][a-z0-9-]{0,49}")) }?.let { "topic:$it" } ?: "is:public"
 }
+
+@Serializable data class ReadingRecord(val scope: String, val fullName: String, val ref: String, val path: String, val readAt: Long)

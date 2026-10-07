@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.reporove.TranslationServiceTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-07T16:48:58.394Z" hostname="MacBookdeMacBook-Air.local" time="0.079">
+  <properties/>
+  <testcase name="sessionChangePreventsLatePrivateResponseAndCacheWrite" classname="app.reporove.TranslationServiceTest" time="0.021"/>
+  <testcase name="successfulTranslationIsCachedOfflineAndConfigurationChangesInvalidateIt" classname="app.reporove.TranslationServiceTest" time="0.025"/>
+  <testcase name="privateTextBlockedBeforeRequestAndPrivateCachesSeparatedAndCleared" classname="app.reporove.TranslationServiceTest" time="0.021"/>
+  <testcase name="failureTruncationAndInvalidIdAreNotCachedAsSuccess" classname="app.reporove.TranslationServiceTest" time="0.011"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

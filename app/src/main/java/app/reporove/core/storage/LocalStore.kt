@@ -19,6 +19,10 @@ class LocalStore(context: Context) {
     private val preferencesKey = stringPreferencesKey("preferences-v1")
     private val collectionsKey = stringPreferencesKey("collections-v1")
     private val downloadsKey = stringPreferencesKey("downloads-v1")
+    private val readingsKey = stringPreferencesKey("reading-history-v1")
+    val readings: Flow<List<ReadingRecord>> get() = values.map { decode(it[readingsKey], emptyList()) }
+    suspend fun recordReading(record: ReadingRecord, active: () -> Boolean = { true }) { data.edit { values -> if (!active()) return@edit; values[readingsKey] = AppJson.encodeToString((listOf(record) + decode<List<ReadingRecord>>(values[readingsKey], emptyList()).filterNot { it.scope == record.scope && it.fullName == record.fullName && it.path == record.path && it.ref == record.ref }).take(100)) } }
+    suspend fun clearReadings() { data.edit { it.remove(readingsKey) } }
     private val values = data.data.catch { if (it is IOException) emit(androidx.datastore.preferences.core.emptyPreferences()) else throw it }
 
     val preferences: Flow<Preferences> = values.map { value ->

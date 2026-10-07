@@ -94,11 +94,11 @@ fun bytesLabel(value: Long): String = when { value < 1024 -> "$value B"; value <
 
 @Composable fun Note(text: String) { Text(text, Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 
-@Composable fun <T> Resource(state: LoadState<T>, retry: () -> Unit, content: @Composable (T) -> Unit) {
+@Composable fun <T> Resource(state: LoadState<T>, retry: () -> Unit, showCacheNote: Boolean = true, content: @Composable (T) -> Unit) {
     when (state) {
         LoadState.Loading -> LoadingIndicator()
         is LoadState.Failed -> EmptyState("暂时无法加载", state.message, "重试", retry)
-        is LoadState.Ready -> { if (state.offline) Note("当前展示缓存内容，联网后可刷新。" ); content(state.value) }
+        is LoadState.Ready -> { if (showCacheNote && state.offline) Note("当前展示缓存内容，联网后可刷新。" ); content(state.value) }
     }
 }
 

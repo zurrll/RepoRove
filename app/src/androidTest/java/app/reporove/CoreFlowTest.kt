@@ -18,6 +18,10 @@ import app.reporove.ui.RepoRoveApp
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
+import kotlinx.serialization.json.*
+import kotlinx.serialization.encodeToString
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -39,6 +43,9 @@ class CoreFlowTest {
     @Volatile private var starred = false
     @Volatile private var showCi = false
     @Volatile private var showReviews = false
+    @Volatile private var disconnected = false
+    @Volatile private var archiveFailure = false
+    @Volatile private var privateRepository = false
     @Volatile private var responsiveDocument = false
     private val requestedPaths = CopyOnWriteArrayList<String>()
     private val repository = """{"id":71,"name":"paper-reader","full_name":"demo/paper-reader","owner":{"id":9,"login":"demo"},"description":"A quiet place to read code and discover useful projects.","language":"Kotlin","stargazers_count":4200,"forks_count":210,"open_issues_count":12,"default_branch":"main","html_url":"https://github.com/demo/paper-reader","pushed_at":"2026-10-05T12:00:00Z","topics":["android","productivity"]}"""
@@ -53,6 +60,16 @@ class CoreFlowTest {
                 val url = request.requestUrl!!
                 val path = url.encodedPath
                 requestedPaths += path
+                if (disconnected) return MockResponse().setResponseCode(503)
+                if (path.contains("/zipball/")) {
+                    if (archiveFailure) return MockResponse().setResponseCode(500)
+                    val bytes = java.io.ByteArrayOutputStream()
+                    java.util.zip.ZipOutputStream(bytes).use { zip ->
+                        mapOf("repo-sha/README.md" to readme, "repo-sha/src/Reader.kt" to "package demo\n\nfun read() = \"Hello offline\"\n", "repo-sha/LICENSE" to "Fixture license").forEach { (name, text) -> zip.putNextEntry(java.util.zip.ZipEntry(name)); zip.write(text.toByteArray()); zip.closeEntry() }
+                    }
+                    return MockResponse().setHeader("Content-Type", "application/zip").setBody(okio.Buffer().write(bytes.toByteArray()))
+                }
+                if (path.contains("/commits/")) return MockResponse().setHeader("Content-Type", "application/json").setBody("""{"sha":"${"a".repeat(40)}","commit":{"message":"Snapshot commit"}}""")
                 if (path.startsWith("/search/")) queries += url.queryParameter("q").orEmpty()
                 val body = when {
                     path == "/markdown" && responsiveDocument -> {
@@ -94,7 +111,7 @@ class CoreFlowTest {
                     path == "/user" -> """{"id":44,"login":"reader","name":"Reader Test","html_url":"https://github.com/reader"}"""
                     path.startsWith("/search/repositories") -> """{"total_count":1,"items":[$repository]}"""
                     path.startsWith("/search/issues") -> """{"total_count":1,"items":[$issue]}"""
-                    path == "/repos/demo/paper-reader" -> repository
+                    path == "/repos/demo/paper-reader" -> if (privateRepository) repository.replace("\"topics\"", "\"private\":true,\"topics\"") else repository
                     path.endsWith("/readme") -> """{"name":"README.md","path":"README.md","type":"file","size":${readme.toByteArray().size},"encoding":"base64","content":"${Base64.getEncoder().encodeToString(readme.toByteArray())}"}"""
                     path.endsWith("/releases/5") -> release
                     path.endsWith("/releases") -> "[$release]"
@@ -126,19 +143,34 @@ class CoreFlowTest {
         }
         server.start()
         val application = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
-        container = AppContainer(application) { token ->
+        container = AppContainer(application, translationFactory = { secrets, cache ->
+            val client = OkHttpClient.Builder().addInterceptor { chain ->
+                val buffer = okio.Buffer(); chain.request().body!!.writeTo(buffer)
+                val request = AppJson.parseToJsonElement(buffer.readUtf8()).jsonObject
+                val source = request["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonPrimitive.content
+                val parts = AppJson.decodeFromString<List<app.reporove.core.translation.TranslationPart>>(source)
+                val translated = parts.map { it.copy(text = "译文：" + it.text) }
+                val payload = buildJsonObject { putJsonArray("choices") { add(buildJsonObject { put("finish_reason", "stop"); putJsonObject("message") { put("content", AppJson.encodeToString(translated)) } }) } }
+                okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("fixture").body(payload.toString().toResponseBody("application/json".toMediaType())).build()
+            }.build()
+            app.reporove.core.translation.TranslationService(secrets, cache, client)
+        }) { token ->
             val client = OkHttpClient.Builder().addNetworkInterceptor(GitHubHeaders(token, "localhost")).build()
             createApi(token, server.url("/").toString(), client)
         }
         runBlocking {
+            container.offline.ready.await()
+            container.offline.snapshots.value.filter { it.repository.fullName == "demo/paper-reader" }.forEach { container.offline.delete(it.id) }
             container.repository.logout()
-            container.local.updatePreferences { Preferences() }
+            container.local.updatePreferences { Preferences(clipboardLinks = false) }
             container.local.collections.first().later.forEach { container.local.toggleLater(it) }
             container.local.collections.first().following.forEach { container.local.toggleFollowing(it) }
         }
     }
     @After fun teardown() {
-        runBlocking { container.repository.logout(); container.local.updatePreferences { Preferences() } }
+        runBlocking { container.translation.resetConfiguration() }
+        runBlocking { container.offline.snapshots.value.filter { it.repository.fullName == "demo/paper-reader" }.forEach { container.offline.delete(it.id) } }
+        runBlocking { container.repository.logout(); container.local.updatePreferences { Preferences(clipboardLinks = false) } }
         server.shutdown()
     }
     private fun launch() { compose.setContent { activity = LocalActivity.current; RepoRoveApp(container, activity?.window) }; waitFor("paper-reader") }
@@ -168,6 +200,10 @@ class CoreFlowTest {
         return null
     }
     private fun js(script: String, webIndex: Int = 0): String {
+        // Navigation animations briefly retain the outgoing repository's WebView.
+        // Advance Compose to idle before selecting a view, so JS and touch input
+        // exercise the reader the user currently sees rather than the old page.
+        compose.waitForIdle()
         val latch = CountDownLatch(1); var answer = ""
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             val views = mutableListOf<WebView>()
@@ -229,6 +265,97 @@ class CoreFlowTest {
         return matched.get()
     }
 
+    @Test fun aboutShowsCurrentAndHistoricalVersionChanges() {
+        launch(); compose.onNodeWithContentDescription("我的").performClick(); waitFor("访问令牌")
+        compose.onNodeWithContentDescription("设置").performClick(); waitFor("关于")
+        compose.onNodeWithText("关于", substring = false).performClick(); waitFor("版本更新记录")
+        compose.onNodeWithText("版本更新记录").performClick(); waitFor("0.5.0 · 当前")
+        compose.onNodeWithText("关于页新增各版更新记录", substring = true).assertExists()
+        screenshot("version-history")
+    }
+
+    @Test fun fullAndSelectedTranslationPreserveOriginalAndNativeSelectionMenu() {
+        runBlocking { container.translation.configure(app.reporove.core.translation.TranslationConfig("https://translation.example/v1/chat/completions", "fixture-model", "fixture-key")) }
+        launch(); compose.onNodeWithText("paper-reader").performClick(); waitFor("阅读全文")
+        compose.onAllNodesWithText("阅读全文").onFirst().performClick(); waitForDocument()
+        val original = js("document.body.innerText")
+        compose.onNodeWithContentDescription("AI 全文 / 原文").performClick(); waitFor("翻译全文")
+        compose.onNodeWithText("翻译", substring = false).performClick()
+        compose.waitUntil(15000) { js("document.body.innerText").contains("译文：") }
+        assertEquals("\"val x = 1\"", js("document.querySelector('pre').innerText"))
+        assertTrue(js("document.querySelector('a').href").contains("github.com/demo"))
+        screenshot("full-translation")
+        compose.onNodeWithContentDescription("AI 全文 / 原文").performClick()
+        compose.waitUntil(10000) { js("document.body.innerText") == original }
+        js("(()=>{const node=document.querySelector('h1').firstChild;const range=document.createRange();range.selectNodeContents(node);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);return selection.toString()})()")
+        var actionMode: android.view.ActionMode? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            actionMode = findWeb(activity!!.window.decorView)!!.startActionMode(object : android.view.ActionMode.Callback {
+                override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = true
+                override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
+                override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem) = false
+                override fun onDestroyActionMode(mode: android.view.ActionMode) = Unit
+            }, android.view.ActionMode.TYPE_FLOATING)
+            assertNotNull(actionMode)
+            assertTrue(actionMode!!.menu.performIdentifierAction(0x525654, 0))
+        }
+        waitFor("翻译选中文字"); compose.onNodeWithText("Paper Reader", substring = false).assertExists()
+        compose.onNodeWithText("翻译", substring = false).performClick(); waitFor("译文：Paper Reader")
+        screenshot("selected-translation")
+    }
+
+    @Test fun offlineSnapshotReadsFilesWithoutNetworkAndDeletesDiskFiles() {
+        launch()
+        runBlocking { container.offline.save(app.reporove.core.offline.SaveRequest("demo/paper-reader", "main", true, true)) }
+        val snapshot = container.offline.snapshots.value.single()
+        assertEquals("a".repeat(40), snapshot.sha)
+        assertTrue(requestedPaths.any { it.endsWith("/zipball/${snapshot.sha}") })
+        disconnected = true
+        compose.onNodeWithText("项目库", substring = false).performClick()
+        waitFor("离线与最近阅读"); compose.onNodeWithText("离线与最近阅读").performClick()
+        waitFor("阅读"); compose.onNodeWithText("阅读", substring = false).performClick()
+        try { waitForDocument() } catch (e: Throwable) { screenshot("offline-readme-failure"); throw AssertionError("Offline DOM " + js("JSON.stringify({height:document.documentElement.clientHeight,body:document.body.innerText,html:document.body.innerHTML})"), e) }
+        assertTrue(js("document.body.innerText").contains("Reading content"))
+        compose.onNodeWithText("源码", substring = false).performClick(); waitFor("src")
+        compose.onNodeWithText("src", substring = false).performClick(); waitFor("Reader.kt")
+        compose.onNodeWithText("Reader.kt", substring = false).performClick()
+        compose.waitUntil(10000) { var present = false; InstrumentationRegistry.getInstrumentation().runOnMainSync { present = findCodeView(activity!!.window.decorView)?.text?.contains("Hello offline") == true }; present }
+        compose.onNodeWithContentDescription("文件树").performClick(); waitFor("文件树")
+        screenshot("offline-code-tree")
+        val dir = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "offline-repositories/${snapshot.id}")
+        assertTrue(File(dir, "source.zip").exists())
+        runBlocking { container.offline.delete(snapshot.id) }
+        assertFalse(dir.exists()); assertNull(container.offline.find(snapshot.id))
+    }
+
+    @Test fun failedSnapshotUpdatePreservesOldFilesAndPrivateLogoutPurgesSnapshots() {
+        runBlocking {
+            container.offline.save(app.reporove.core.offline.SaveRequest("demo/paper-reader", "main", false, true))
+            val original = container.offline.snapshots.value.single()
+            assertNull(original.readme); assertTrue(original.entries.isNotEmpty())
+            archiveFailure = true
+            container.offline.save(app.reporove.core.offline.SaveRequest("demo/paper-reader", "main", true, true))
+            assertEquals(original.id, container.offline.snapshots.value.single().id)
+            assertEquals("LICENSE", container.offline.contents(original.id, "LICENSE").single().name)
+            assertFalse(container.offline.progress.value.getValue("demo/paper-reader").running)
+            assertNotNull(container.offline.progress.value.getValue("demo/paper-reader").error)
+            container.offline.delete(original.id)
+            archiveFailure = false; privateRepository = true
+            container.repository.login("test-token-not-a-real-secret")
+            container.offline.save(app.reporove.core.offline.SaveRequest("demo/paper-reader", "main", true, false))
+            val private = container.offline.snapshots.value.single()
+            assertTrue(private.repository.isPrivate); assertTrue(private.documents); assertFalse(private.code)
+            container.repository.logout()
+            assertTrue(container.offline.snapshots.value.isEmpty())
+            assertFalse(File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "offline-repositories/${private.id}").exists())
+        }
+    }
+    private fun findCodeView(view: View): app.reporove.ui.CodeTextView? {
+        if (view is app.reporove.ui.CodeTextView) return view
+        if (view is ViewGroup) for (i in 0 until view.childCount) findCodeView(view.getChildAt(i))?.let { return it }
+        return null
+    }
+
     @Test fun repositoryHeaderScrollsAwayAndTabsRemainAvailable() {
         launch(); compose.onNodeWithText("paper-reader").performClick(); waitFor("阅读全文")
         compose.waitUntil(15000) { anyDocumentMatches("!!document.querySelector('pre')") }
@@ -285,8 +412,11 @@ class CoreFlowTest {
         assertEquals("true", js(fits))
         js("document.querySelector('#wide-table').scrollIntoView();true")
         val viewport = js("window.innerWidth").toFloat()
-        swipeWeb(viewport - 30f, 35f, 35f, 35f)
-        compose.waitUntil(5000) { js("document.querySelector('#wide-table').parentElement.scrollLeft > 0 && window.scrollX === 0") == "true" }
+        js("window.__touches=[];document.addEventListener('touchstart',e=>{window.__touches.push({x:e.touches[0].clientX,y:e.touches[0].clientY,target:e.target.tagName})},{passive:true});true")
+        val tableY = js("document.querySelector('#wide-table').parentElement.getBoundingClientRect().top + 20").toFloat()
+        swipeWeb(viewport - 30f, tableY, 35f, tableY)
+        try { compose.waitUntil(5000) { js("document.querySelector('#wide-table').parentElement.scrollLeft > 0 && window.scrollX === 0") == "true" } }
+        catch (e: Throwable) { screenshot("table-gesture-failure"); throw AssertionError("Horizontal gesture: " + js("JSON.stringify({touches:window.__touches,rect:document.querySelector('#wide-table').parentElement.getBoundingClientRect().toJSON(),scroll:document.querySelector('#wide-table').parentElement.scrollLeft,viewport:[innerWidth,innerHeight],windowY:scrollY})"), e) }
         assertEquals("true", js("(() => { const p=document.querySelector('pre'); p.scrollLeft=100; return p.scrollLeft>0 && window.scrollX===0; })()"))
         js("document.querySelector('#wide-table').parentElement.scrollLeft=0;document.querySelector('#wide-table').parentElement.previousElementSibling.scrollIntoView();true")
         screenshot("reader-responsive-light")
@@ -310,10 +440,10 @@ class CoreFlowTest {
         waitForDocument()
         assertEquals("true", js("document.body.textContent.includes('😄') && !!document.querySelector('details') && !!document.querySelector('.markdown-alert') && !!document.querySelector('.pl-k')"))
         js("document.querySelector('a[href*=\"/copy/0\"]').click();true")
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+        compose.waitUntil(5000) { var copied = false; InstrumentationRegistry.getInstrumentation().runOnMainSync {
             val clipboard = activity!!.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            assertEquals("val x = 1", clipboard.primaryClip!!.getItemAt(0).text.toString())
-        }
+            copied = clipboard.primaryClip?.getItemAt(0)?.text?.toString() == "val x = 1"
+        }; copied }
         js("document.querySelector('a[href=\"https://github.com/demo\"]').click();true")
         waitFor("Demo Author")
         compose.onNodeWithText("Author profile inside RepoRove").assertIsDisplayed()
@@ -365,12 +495,14 @@ class CoreFlowTest {
     @Test fun typedCatalogAndCustomTopicsPersistWithoutCheckboxes() {
         launch(); compose.onNodeWithText("调整兴趣").performClick(); waitFor("已选 0 个")
         compose.onNodeWithText("输入或搜索兴趣主题").performTextInput(" Python ")
-        compose.onNodeWithText("保存兴趣").performClick()
+        // Invoke the accessible action while the system IME is animating;
+        // this checks pending-input persistence without stale touch coordinates.
+        compose.onNodeWithText("保存兴趣").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.waitUntil(10000) { runBlocking { container.local.preferences.first().interests == listOf("python") } }
         compose.onNodeWithText("python", substring = false).assertExists()
         compose.onNodeWithText("调整兴趣").performClick(); waitFor("已选 1 个")
         compose.onNodeWithText("输入或搜索兴趣主题").performTextInput("my-custom-reporove-topic")
-        compose.onNodeWithText("保存兴趣").performClick()
+        compose.onNodeWithText("保存兴趣").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         try { compose.waitUntil(10000) { runBlocking { "my-custom-reporove-topic" in container.local.preferences.first().interests } } }
         catch (error: Throwable) { screenshot("interests-failure"); println("INTEREST_STATE=${runBlocking { container.local.preferences.first().interests }}"); compose.onRoot().printToLog("InterestFailure"); throw error }
         compose.onNodeWithText("调整兴趣").performClick(); waitFor("已选 2 个")

@@ -33,6 +33,7 @@ import app.reporove.data.GitHubRepository
 
 @Composable fun RepositoryScreen(app: AppModel, prefs: Preferences, nav: AppNavigation, fullName: String, initialTab: RepoTab) {
     val context = LocalContext.current
+    var offlineSave by remember { mutableStateOf(false) }
     var saveMenu by remember { mutableStateOf(false) }
     var selected by rememberSaveable(fullName) {
         mutableStateOf(if (initialTab == RepoTab.Overview && initialTab !in prefs.repoTabs) prefs.repoTabs.firstOrNull()?.name ?: "more" else initialTab.name)
@@ -41,6 +42,11 @@ import app.reporove.data.GitHubRepository
     val state by model.state.collectAsStateWithLifecycle()
     val collections by app.container.repository.collections.collectAsStateWithLifecycle(CollectionState())
     val account by app.container.repository.account.collectAsStateWithLifecycle()
+    LaunchedEffect(state) { (state as? LoadState.Ready)?.value?.let { repo ->
+        val bound = app.container.repository.boundSource()
+        if (!repo.isPrivate || bound.scope != "public") app.container.local.recordReading(ReadingRecord(bound.scope, fullName, repo.defaultBranch, "", System.currentTimeMillis()), bound.active)
+    } }
+    if (offlineSave) OfflineSaveDialog(fullName, (state as? LoadState.Ready)?.value?.defaultBranch ?: "main") { offlineSave = false }
     val star = screenModel("star:$fullName") { ResourceModel<Boolean>() }
     val starState by star.state.collectAsStateWithLifecycle()
     val busy by app.busy.collectAsStateWithLifecycle()
@@ -48,7 +54,7 @@ import app.reporove.data.GitHubRepository
         model.configure(fullName) { app.container.repository.repository(fullName, it) }
         star.configure("$fullName:${account?.id}") { Loaded(app.container.repository.isStarred(fullName), System.currentTimeMillis()) }
     }
-    Resource(state, { model.refresh() }) { repo ->
+    Resource(state, { model.refresh() }, showCacheNote = false) { repo ->
         RepositoryLayout(fullName, header = {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -56,6 +62,7 @@ import app.reporove.data.GitHubRepository
                         AuthorLink(repo.owner)
                         Text(repo.name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
+                    SourceBadge((state as? LoadState.Ready)?.offline == true, (state as? LoadState.Ready)?.cachedAt ?: 0, refresh = model::refresh)
                     IconButton(onClick = { nav.search("repo:${repo.fullName}") }) { Icon(Icons.Outlined.Search, "搜索此仓库") }
                     IconButton(onClick = { openUrl(context, repo.htmlUrl) }) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, "在 GitHub 中打开") }
                 }
@@ -73,6 +80,7 @@ import app.reporove.data.GitHubRepository
                     Box {
                         TextButton(onClick = { saveMenu = true }) { Icon(Icons.Outlined.BookmarkBorder, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("保存到 App"); Icon(Icons.Outlined.ArrowDropDown, null, Modifier.size(18.dp)) }
                         DropdownMenu(saveMenu, { saveMenu = false }) {
+                            DropdownMenuItem(text = { Text("离线保存资料 / 源码") }, leadingIcon = { Icon(Icons.Outlined.OfflinePin, null) }, onClick = { saveMenu = false; offlineSave = true })
                             val later = collections.later.any { it.id == repo.id }
                             val followed = collections.following.any { it.id == repo.id }
                             DropdownMenuItem(text = { Text("稍后看") }, leadingIcon = { Icon(Icons.Outlined.BookmarkBorder, null) }, trailingIcon = { if (later) Icon(Icons.Outlined.Check, "已保存") }, onClick = { saveMenu = false; app.action("later:${repo.id}", if (later) "已移出稍后看" else "已保存") { app.container.local.toggleLater(repo) } })
@@ -101,6 +109,7 @@ import app.reporove.data.GitHubRepository
                     RepoTab.Contributors.name -> PeopleScreen(app, nav, repo.fullName, "contributors")
                     RepoTab.Security.name -> RepoFeatureScreen(app, prefs, nav, repo.fullName, "security")
                     else -> LazyColumn {
+                        item { ActionRow("保存离线仓库", "资料与源码分别选择") { offlineSave = true } }
                         item { SectionTitle("更多栏目") }
                         items(RepoTab.entries.filterNot { it in prefs.repoTabs }) { tab -> ActionRow(tab.label) { selected = tab.name } }
                         item { ActionRow("定制仓库栏目", "所有仓库共用布局") { nav.settingsSection("repository") } }
@@ -157,90 +166,22 @@ import app.reporove.data.GitHubRepository
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(fullName) { model.configure(fullName) { refresh -> val content = app.container.repository.readme(fullName, refresh); val repo = app.container.repository.repository(fullName).data; Loaded(content.data to repo, content.cachedAt, content.offline) } }
     Column(Modifier.fillMaxSize()) {
-        SectionTitle(fullName, "刷新", model::refresh)
-        Resource(state, model::refresh) { (content, repo) ->
+        var translate by remember { mutableIntStateOf(0) }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(fullName, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
+            SourceBadge((state as? LoadState.Ready)?.offline == true, (state as? LoadState.Ready)?.cachedAt ?: 0, refresh = model::refresh)
+            IconButton(onClick = { translate++ }) { Icon(Icons.Outlined.Translate, "AI 全文 / 原文") }
+            IconButton(onClick = { model.refresh() }) { Icon(Icons.Outlined.Refresh, "刷新 README") }
+        }
+        Resource(state, model::refresh, showCacheNote = false) { (content, repo) ->
             val text = remember(content) { runCatching { GitHubRepository.text(content) } }
-            text.getOrNull()?.let { MarkdownBody(it, prefs, Modifier.fillMaxSize(), fullName, repo.defaultBranch, content.path, fill = true) } ?: EmptyState("无法直接预览", text.exceptionOrNull()?.message)
+            text.getOrNull()?.let { MarkdownBody(it, prefs, Modifier.fillMaxSize(), fullName, repo.defaultBranch, content.path, fill = true, translationRequest = translate, privateHint = repo.isPrivate) } ?: EmptyState("无法直接预览", text.exceptionOrNull()?.message)
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable fun CodeScreen(app: AppModel, prefs: Preferences, nav: AppNavigation, fullName: String, ref: String, path: String, anchor: String = "") {
-    val context = LocalContext.current
-    val clipboard = LocalClipboard.current
-    var rendered by rememberSaveable(path) { mutableStateOf(path.substringAfterLast('.').lowercase() in listOf("md", "markdown", "mdown")) }
-    var wrap by rememberSaveable { mutableStateOf(false) }
-    var branchMenu by remember { mutableStateOf(false) }
-    var fileMenu by remember { mutableStateOf(false) }
-    val model = screenModel("code:$fullName:$ref:$path") { ResourceModel<List<Content>>() }
-    val branches = screenModel("branches:$fullName") { ResourceModel<List<Branch>>() }
-    val state by model.state.collectAsStateWithLifecycle()
-    val branchState by branches.state.collectAsStateWithLifecycle()
-    val contents = (state as? LoadState.Ready)?.value
-    val file = contents?.singleOrNull()?.takeIf { it.type != "dir" && it.path == path }
-    LaunchedEffect(fullName, ref, path) { model.configure("$fullName:$ref:$path") { app.container.repository.contents(fullName, path, ref, it) }; branches.configure(fullName) { app.container.repository.branches(fullName) } }
-    if (file != null && rendered) {
-        val text = remember(file) { runCatching { GitHubRepository.text(file) } }
-        Column(Modifier.fillMaxSize()) {
-            SectionTitle(file.name, "查看源码", { rendered = false })
-            text.getOrNull()?.let { MarkdownBody(it, prefs, Modifier.fillMaxWidth().weight(1f), fullName, ref, path, fill = true, initialAnchor = anchor) }
-                ?: EmptyState("无法直接预览", text.exceptionOrNull()?.message)
-        }
-        return
-    }
-    LazyColumn {
-        item {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box { TextButton(onClick = { branchMenu = true }) { Text(ref); Icon(Icons.Outlined.ArrowDropDown, "选择分支") }; DropdownMenu(branchMenu, { branchMenu = false }) {
-                    (branchState as? LoadState.Ready)?.value?.forEach { branch -> DropdownMenuItem(text = { Text(branch.name) }, onClick = { branchMenu = false; nav.code(fullName, branch.name) }) }
-                    if (branchState is LoadState.Failed) DropdownMenuItem(text = { Text("重试加载分支") }, onClick = { branches.refresh() })
-                } }
-                Spacer(Modifier.weight(1f)); IconButton(onClick = { model.refresh() }) { Icon(Icons.Outlined.Refresh, "刷新代码") }
-            }
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { nav.code(fullName, ref) }, enabled = path.isNotEmpty()) { Text("根目录") }
-                path.split('/').filter(String::isNotBlank).forEachIndexed { index, part -> Text("/", color = MaterialTheme.colorScheme.onSurfaceVariant); TextButton(onClick = { nav.code(fullName, ref, path.split('/').take(index + 1).joinToString("/")) }) { Text(part) } }
-                if (path.isNotEmpty()) TextButton(onClick = { nav.code(fullName, ref, path.substringBeforeLast('/', "")) }) { Text("上一级") }
-            }
-        }
-        if (contents != null && file == null) {
-            if ((state as? LoadState.Ready)?.offline == true) item { Note("当前展示缓存内容，联网后可刷新。") }
-            items(contents.sortedWith(compareBy<Content> { it.type != "dir" }.thenBy { it.name.lowercase() }), key = Content::path) { entry ->
-                Row(Modifier.fillMaxWidth().combinedClickable(onClick = { nav.code(fullName, ref, entry.path) }, onLongClick = { app.action("copy-path", "已复制路径") { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(entry.name, entry.path))) } }).heightIn(min = 48.dp).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(if (entry.type == "dir") Icons.Outlined.Folder else Icons.AutoMirrored.Outlined.InsertDriveFile, null, Modifier.size(20.dp), tint = if (entry.type == "dir") LocalSemanticColors.current.link else MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(entry.name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
-                    if (entry.type != "dir") Text(bytesLabel(entry.size), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
-            }
-            if (contents.isEmpty()) item { Note("这个目录没有文件。") }
-        } else item { Resource(state, { model.refresh() }) {
-            if (file != null) {
-                val text = remember(file) { runCatching { GitHubRepository.text(file) } }
-                Column {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(file.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                        Box {
-                            IconButton(onClick = { fileMenu = true }) { Icon(Icons.Outlined.MoreHoriz, "文件操作") }
-                            DropdownMenu(fileMenu, { fileMenu = false }) {
-                                if (path.substringAfterLast('.').lowercase() in listOf("md", "markdown", "mdown")) DropdownMenuItem(text = { Text("阅读模式") }, onClick = { rendered = true; fileMenu = false })
-                                DropdownMenuItem(text = { Text(if (wrap) "关闭自动换行" else "自动换行") }, onClick = { wrap = !wrap; fileMenu = false })
-                                DropdownMenuItem(text = { Text("复制内容") }, enabled = text.isSuccess, onClick = { fileMenu = false; app.action("copy-code", "已复制文件内容") { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(file.name, text.getOrDefault("")))) } })
-                                DropdownMenuItem(text = { Text("在 GitHub 打开") }, onClick = { fileMenu = false; file.htmlUrl?.let { openUrl(context, it) } })
-                            }
-                        }
-                    }
-                    text.getOrNull()?.let { content ->
-                        val preview = remember(content) { content.take(200_000).lineSequence().take(5000).mapIndexed { index, line -> "${index + 1}  $line" }.joinToString("\n") }
-                        if (content.length > 200_000 || content.lineSequence().drop(5000).any()) Note("文件较长，显示前 5000 行或 20 万字符；复制按钮仍可复制完整内容。")
-                        if (rendered) MarkdownBody(content, prefs, Modifier.fillMaxWidth(), fullName, ref, path)
-                        else Text(preview, modifier = Modifier.fillMaxWidth().padding(20.dp).then(if (wrap) Modifier else Modifier.horizontalScroll(rememberScrollState())), style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace), softWrap = wrap)
-                    } ?: EmptyState("无法直接预览", text.exceptionOrNull()?.message)
-                }
-            }
-        } }
-    }
+    CodeBrowser(app, prefs, nav, fullName, ref, path, anchor)
 }
 
 @Composable private fun IssuesScreen(app: AppModel, nav: AppNavigation, fullName: String, pulls: Boolean) {

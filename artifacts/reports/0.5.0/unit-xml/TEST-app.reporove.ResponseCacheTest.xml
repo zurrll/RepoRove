@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.reporove.ResponseCacheTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-07T16:48:58.306Z" hostname="MacBookdeMacBook-Air.local" time="0.085">
+  <properties/>
+  <testcase name="granularMutationPreservesReadmeAndOtherAccounts" classname="app.reporove.ResponseCacheTest" time="0.063"/>
+  <testcase name="accountIsolationLogoutAndStaleRequestWrites" classname="app.reporove.ResponseCacheTest" time="0.012"/>
+  <testcase name="corruptCacheDoesNotPreventNetworkRecovery" classname="app.reporove.ResponseCacheTest" time="0.01"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

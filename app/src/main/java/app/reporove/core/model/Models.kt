@@ -178,6 +178,6 @@ data class Loaded<T>(val data: T, val cachedAt: Long, val offline: Boolean = fal
 
 sealed interface LoadState<out T> {
     data object Loading : LoadState<Nothing>
-    data class Ready<T>(val value: T, val offline: Boolean = false) : LoadState<T>
+    data class Ready<T>(val value: T, val offline: Boolean = false, val cachedAt: Long = 0) : LoadState<T>
     data class Failed(val message: String) : LoadState<Nothing>
 }

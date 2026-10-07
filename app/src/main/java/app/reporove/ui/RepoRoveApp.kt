@@ -86,6 +86,9 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
             }
         }
     }
+    fun offlineLibrary() { controller.navigate("offline") { launchSingleTop = true } }
+    fun offlineRepo(id: String) { controller.navigate("offline-repo/$id") }
+    fun offlineCode(id: String, path: String) { controller.navigate("offline-code/$id?path=${Uri.encode(path)}") }
     fun settings() { controller.navigate("settings") { launchSingleTop = true } }
     fun downloads() { controller.navigate("downloads") { launchSingleTop = true } }
     fun back() { controller.popBackStack() }
@@ -96,13 +99,14 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
     val preferencesFlow = remember(container) { container.local.preferences.map { it as Preferences? } }
     val preferences by preferencesFlow.collectAsStateWithLifecycle(initialValue = null)
     val account by container.repository.account.collectAsStateWithLifecycle()
+    val accountScope by container.repository.sessionScope.collectAsStateWithLifecycle()
     val app = screenModel("app") { AppModel(container) }
     val prefs = preferences
     if (prefs == null) { RepoRoveTheme(Preferences()) { LoadingIndicator() }; return }
     RepoRoveTheme(prefs) {
         val light = MaterialTheme.colorScheme.background.luminance() > .5f
         SideEffect { window?.let { WindowCompat.getInsetsController(it, it.decorView).apply { isAppearanceLightStatusBars = light; isAppearanceLightNavigationBars = light } } }
-        key(account?.id) {
+        key(accountScope) {
             val controller = rememberNavController()
             val navigation = remember(controller) { AppNavigation(controller) }
             val entry by controller.currentBackStackEntryAsState()
@@ -116,7 +120,7 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
                 route.startsWith("thread/") -> if (entry?.arguments?.getBoolean("pull") == true) "Pull Request" else "Issue"
                 route.startsWith("release/") -> "版本详情"
                 route == "settings" -> "设置"
-                route.startsWith("settings/") -> when (entry?.arguments?.getString("section")) { "appearance" -> "外观与阅读"; "navigation" -> "导航与启动"; "repository" -> "仓库布局"; "feedback" -> "推荐排除"; else -> "关于" }
+                route.startsWith("settings/") -> when (entry?.arguments?.getString("section")) { "history" -> "版本更新记录"; "translation" -> "AI 翻译"; "appearance" -> "外观与阅读"; "navigation" -> "导航与启动"; "repository" -> "仓库布局"; "feedback" -> "推荐排除"; else -> "关于" }
                 route == "organizations" -> "我的组织"
                 route.startsWith("check/") -> "检查详情"
                 route.startsWith("comment/") -> "评论"
@@ -137,9 +141,12 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
                 route.startsWith("run/") -> "工作流详情"
                 route.startsWith("feature/") -> when (entry?.arguments?.getString("feature")) { "projects" -> "Projects"; "security" -> "安全公告"; "stats" -> "仓库概况"; else -> "Wiki" }
                 route.startsWith("scoped-search") -> "搜索"
+                route == "offline" -> "离线与最近阅读"
+                route.startsWith("offline-") -> "本机仓库"
                 route == "downloads" -> "下载"
                 else -> "RepoRove"
             }
+            ClipboardLinkPrompt(prefs, navigation, app)
             val main = MainTab.entries.any { it.name == route }
             val focus = LocalFocusManager.current
             val keyboard = LocalSoftwareKeyboardController.current
@@ -197,6 +204,9 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
                     composable("commit/{owner}/{name}/{sha}") { CommitScreen(app, prefs, "${it.arguments?.getString("owner")}/${it.arguments?.getString("name")}", it.arguments?.getString("sha").orEmpty()) }
                     composable("discussion/{owner}/{name}/{number}", arguments = listOf(navArgument("number") { type = NavType.IntType })) { DiscussionScreen(app, prefs, navigation, "${it.arguments?.getString("owner")}/${it.arguments?.getString("name")}", it.arguments?.getInt("number") ?: 0) }
                     composable("scoped-search?scope={scope}", arguments = listOf(navArgument("scope") { defaultValue = "" })) { SearchScreen(app, prefs, navigation, it.arguments?.getString("scope").orEmpty()) }
+                    composable("offline") { OfflineLibrary(app, prefs, navigation) }
+                    composable("offline-repo/{id}") { OfflineRepositoryScreen(app, prefs, navigation, it.arguments?.getString("id").orEmpty()) }
+                    composable("offline-code/{id}?path={path}", arguments = listOf(navArgument("path") { defaultValue = "" })) { OfflineRepositoryScreen(app, prefs, navigation, it.arguments?.getString("id").orEmpty(), it.arguments?.getString("path").orEmpty()) }
                     composable("downloads") { DownloadsScreen(app) }
                     composable("repo/{owner}/{name}?tab={tab}", arguments = listOf(navArgument("tab") { defaultValue = RepoTab.Overview.name })) { backStack ->
                         val fullName = "${backStack.arguments?.getString("owner")}/${backStack.arguments?.getString("name")}"

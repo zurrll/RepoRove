@@ -1,0 +1,9 @@
+
+app.reporove.CoreFlowTest:..................
+app.reporove.MetadataFeaturesTest:.
+app.reporove.RepositoryPolicyTest:..
+app.reporove.DownloadDeletionTest:....
+
+Time: 197.021
+
+OK (25 tests)

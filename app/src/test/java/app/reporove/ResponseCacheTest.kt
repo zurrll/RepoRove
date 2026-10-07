@@ -19,6 +19,16 @@ class ResponseCacheTest {
         cache.write("alice", "repo", String.serializer(), "old", stillActive = { false })
         assertNull(cache.read("alice", "repo", String.serializer()))
     }
+    @Test fun granularMutationPreservesReadmeAndOtherAccounts() = runTest {
+        val cache = ResponseCache(folder.root)
+        cache.write("alice", "stars:1", String.serializer(), "old stars")
+        cache.write("alice", "readme:owner/repo", String.serializer(), "readable")
+        cache.write("bob", "stars:1", String.serializer(), "bob stars")
+        cache.invalidate("alice") { it.startsWith("stars:") }
+        assertNull(cache.read("alice", "stars:1", String.serializer()))
+        assertEquals("readable", cache.read("alice", "readme:owner/repo", String.serializer())?.data)
+        assertEquals("bob stars", cache.read("bob", "stars:1", String.serializer())?.data)
+    }
     @Test fun corruptCacheDoesNotPreventNetworkRecovery() = runTest {
         val cache = ResponseCache(folder.root)
         cache.write("public", "repo", String.serializer(), "good")

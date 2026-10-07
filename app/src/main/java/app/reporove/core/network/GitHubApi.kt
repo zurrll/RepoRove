@@ -16,6 +16,8 @@ import java.util.concurrent.TimeUnit
 val AppJson = Json { ignoreUnknownKeys = true; coerceInputValues = true; encodeDefaults = true }
 
 interface GitHubApi {
+    @retrofit2.http.Streaming @GET("repos/{owner}/{repo}/zipball/{ref}")
+    suspend fun archive(@Path("owner") owner: String, @Path("repo") repo: String, @Path("ref") ref: String): okhttp3.ResponseBody
     @GET("user") suspend fun me(): User
     @GET("user/memberships/orgs") suspend fun organizations(@Query("page") page: Int): List<OrganizationMembership>
     @GET("repos/{owner}/{repo}/languages") suspend fun languages(@Path("owner") owner: String, @Path("repo") repo: String): Map<String, Long>
