@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="app.reporove.ReaderNavigationTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-08T05:10:40.054Z" hostname="MacBookdeMacBook-Air.local" time="0.01">
+<testsuite name="app.reporove.ReaderNavigationTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-08T05:41:10.577Z" hostname="MacBookdeMacBook-Air.local" time="0.005">
   <properties/>
-  <testcase name="branchReturnRestoresActualPreviousDirectory" classname="app.reporove.ReaderNavigationTest" time="0.005"/>
-  <testcase name="directLinkedFileHasNoInventedDirectoryBackStep" classname="app.reporove.ReaderNavigationTest" time="0.003"/>
+  <testcase name="branchReturnRestoresActualPreviousDirectory" classname="app.reporove.ReaderNavigationTest" time="0.002"/>
+  <testcase name="directLinkedFileHasNoInventedDirectoryBackStep" classname="app.reporove.ReaderNavigationTest" time="0.002"/>
   <testcase name="sameDocumentLinksKeepDecodedUnicodeAndSlashedRefs" classname="app.reporove.ReaderNavigationTest" time="0.001"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>

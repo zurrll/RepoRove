@@ -1,66 +1,12 @@
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.13/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
 Daemon will be stopped at the end of the build
-> Task :smoke-test:preBuild UP-TO-DATE
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
-> Task :smoke-test:preDebugBuild UP-TO-DATE
-> Task :smoke-test:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
 > Task :app:generateDebugBuildConfig UP-TO-DATE
-> Task :smoke-test:javaPreCompileDebug UP-TO-DATE
-> Task :smoke-test:checkDebugAarMetadata UP-TO-DATE
-> Task :smoke-test:generateDebugResValues UP-TO-DATE
-> Task :smoke-test:mapDebugSourceSetPaths UP-TO-DATE
-> Task :smoke-test:generateDebugResources UP-TO-DATE
-> Task :smoke-test:mergeDebugResources UP-TO-DATE
-> Task :smoke-test:packageDebugResources UP-TO-DATE
-> Task :smoke-test:parseDebugLocalResources UP-TO-DATE
-> Task :smoke-test:createDebugCompatibleScreenManifests UP-TO-DATE
-> Task :smoke-test:extractDeepLinksDebug UP-TO-DATE
-> Task :smoke-test:processDebugMainManifest UP-TO-DATE
-> Task :smoke-test:processDebugManifest UP-TO-DATE
-> Task :smoke-test:processDebugManifestForPackage UP-TO-DATE
-> Task :smoke-test:processDebugResources UP-TO-DATE
-> Task :smoke-test:compileDebugJavaWithJavac UP-TO-DATE
-> Task :smoke-test:mergeDebugShaders UP-TO-DATE
-> Task :smoke-test:compileDebugShaders NO-SOURCE
-> Task :smoke-test:generateDebugAssets UP-TO-DATE
-> Task :smoke-test:mergeDebugAssets UP-TO-DATE
-> Task :smoke-test:compressDebugAssets UP-TO-DATE
-> Task :smoke-test:desugarDebugFileDependencies UP-TO-DATE
-> Task :smoke-test:dexBuilderDebug UP-TO-DATE
-> Task :smoke-test:mergeDebugGlobalSynthetics UP-TO-DATE
-> Task :smoke-test:processDebugJavaRes NO-SOURCE
-> Task :smoke-test:mergeDebugJavaResource UP-TO-DATE
-> Task :smoke-test:checkDebugDuplicateClasses UP-TO-DATE
-> Task :smoke-test:mergeExtDexDebug UP-TO-DATE
-> Task :smoke-test:mergeLibDexDebug UP-TO-DATE
-> Task :smoke-test:mergeProjectDexDebug UP-TO-DATE
-> Task :smoke-test:mergeDebugJniLibFolders UP-TO-DATE
-> Task :smoke-test:mergeDebugNativeLibs NO-SOURCE
-> Task :smoke-test:stripDebugDebugSymbols NO-SOURCE
-> Task :smoke-test:validateSigningDebug UP-TO-DATE
-> Task :smoke-test:writeDebugAppMetadata UP-TO-DATE
-> Task :smoke-test:writeDebugSigningConfigVersions UP-TO-DATE
-> Task :smoke-test:packageDebug UP-TO-DATE
-> Task :smoke-test:createDebugApkListingFileRedirect UP-TO-DATE
-> Task :smoke-test:assembleDebug UP-TO-DATE
-> Task :smoke-test:bundleDebugClassesToCompileJar UP-TO-DATE
-> Task :smoke-test:preDebugAndroidTestBuild SKIPPED
-> Task :smoke-test:generateDebugAndroidTestResValues UP-TO-DATE
-> Task :smoke-test:generateDebugAndroidTestLintModel UP-TO-DATE
-> Task :smoke-test:extractProguardFiles UP-TO-DATE
-> Task :smoke-test:generateDebugLintReportModel UP-TO-DATE
-> Task :smoke-test:preDebugUnitTestBuild UP-TO-DATE
-> Task :smoke-test:generateDebugUnitTestLintModel UP-TO-DATE
-> Task :smoke-test:lintAnalyzeDebug UP-TO-DATE
 > Task :app:checkDebugAarMetadata UP-TO-DATE
 > Task :app:generateDebugResValues UP-TO-DATE
-> Task :smoke-test:lintAnalyzeDebugAndroidTest UP-TO-DATE
-> Task :smoke-test:lintAnalyzeDebugUnitTest UP-TO-DATE
-> Task :smoke-test:lintReportDebug UP-TO-DATE
-> Task :smoke-test:lintDebug
 > Task :app:mapDebugSourceSetPaths UP-TO-DATE
 > Task :app:generateDebugResources UP-TO-DATE
 > Task :app:mergeDebugResources UP-TO-DATE
@@ -181,20 +127,20 @@ Daemon will be stopped at the end of the build
 > Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
 > Task :app:checkReleaseDuplicateClasses UP-TO-DATE
 > Task :app:mergeReleaseArtProfile UP-TO-DATE
-> Task :app:expandReleaseArtProfileWildcards
+> Task :app:lintReportRelease UP-TO-DATE
+> Task :app:lintRelease
 > Task :app:mergeReleaseGeneratedProguardFiles UP-TO-DATE
 > Task :app:processReleaseJavaRes UP-TO-DATE
 > Task :app:mergeReleaseJavaResource UP-TO-DATE
 > Task :app:mergeReleaseStartupProfile UP-TO-DATE
-> Task :app:lintReportRelease UP-TO-DATE
-> Task :app:lintRelease
 > Task :app:mergeReleaseShaders UP-TO-DATE
 > Task :app:compileReleaseShaders NO-SOURCE
 > Task :app:generateReleaseAssets UP-TO-DATE
 > Task :app:mergeReleaseAssets UP-TO-DATE
 > Task :app:compressReleaseAssets UP-TO-DATE
-> Task :app:extractReleaseVersionControlInfo UP-TO-DATE
+> Task :app:extractReleaseVersionControlInfo
 > Task :app:generateReleaseLintVitalReportModel
+> Task :app:expandReleaseArtProfileWildcards
 > Task :app:lintVitalAnalyzeRelease
 > Task :app:lintVitalReportRelease SKIPPED
 > Task :app:lintVitalRelease SKIPPED
@@ -209,5 +155,5 @@ Daemon will be stopped at the end of the build
 > Task :app:createReleaseApkListingFileRedirect UP-TO-DATE
 > Task :app:assembleRelease
 
-BUILD SUCCESSFUL in 3m 12s
-174 actionable tasks: 33 executed, 141 up-to-date
+BUILD SUCCESSFUL in 3m 5s
+131 actionable tasks: 33 executed, 98 up-to-date

@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="app.reporove.ReadingAndSearchTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-08T05:10:40.066Z" hostname="MacBookdeMacBook-Air.local" time="0.129">
+<testsuite name="app.reporove.ReadingAndSearchTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-08T05:41:10.583Z" hostname="MacBookdeMacBook-Air.local" time="0.111">
   <properties/>
   <testcase name="profileAndFileRoutingPreserveIdentityAndSearchRevision" classname="app.reporove.ReadingAndSearchTest" time="0.001"/>
-  <testcase name="queryBuilderQuotesLanguagesAndReplacesSelectedConflicts" classname="app.reporove.ReadingAndSearchTest" time="0.006"/>
-  <testcase name="oldPreferencesRetainInterestsAndAppearanceWithoutAddingDefaults" classname="app.reporove.ReadingAndSearchTest" time="0.005"/>
-  <testcase name="readerKeepsStructureAndRejectsActiveContent" classname="app.reporove.ReadingAndSearchTest" time="0.102"/>
+  <testcase name="queryBuilderQuotesLanguagesAndReplacesSelectedConflicts" classname="app.reporove.ReadingAndSearchTest" time="0.007"/>
+  <testcase name="oldPreferencesRetainInterestsAndAppearanceWithoutAddingDefaults" classname="app.reporove.ReadingAndSearchTest" time="0.004"/>
+  <testcase name="readerKeepsStructureAndRejectsActiveContent" classname="app.reporove.ReadingAndSearchTest" time="0.081"/>
   <testcase name="relevanceWinsOverPopularityAndReasonIdentifiesSeedSource" classname="app.reporove.ReadingAndSearchTest" time="0.004"/>
   <testcase name="relativeLinksRespectDirectoryRepositoryRootAndSlashedRef" classname="app.reporove.ReadingAndSearchTest" time="0.0"/>
-  <testcase name="tablePresentationRetainsAlignmentAndMergedCellsWithoutActiveStyles" classname="app.reporove.ReadingAndSearchTest" time="0.011"/>
+  <testcase name="tablePresentationRetainsAlignmentAndMergedCellsWithoutActiveStyles" classname="app.reporove.ReadingAndSearchTest" time="0.013"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>
