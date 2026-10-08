@@ -83,6 +83,14 @@ RepoRove 正在持续完善，目前提供 Android 预览版 APK，以项目浏�
 
 ## 反馈与贡献
 
+我们通过问卷星收集 RepoRove 的使用体验和改进建议。欢迎 [填写体验问卷](https://v.wjx.cn/vm/PA7J6G9.aspx)，或扫描下方二维码，告诉我们哪里好用、哪里不顺手，以及你希望增加的功能。
+
+<p align="center">
+<a href="https://v.wjx.cn/vm/PA7J6G9.aspx">
+<img src="docs/images/feedback-survey.jpg" width="320" alt="问卷星：RepoRove 使用体验收集二维码">
+</a>
+</p>
+
 欢迎通过 [Issues](https://github.com/zurrll/RepoRove/issues) 分享问题和建议。反馈时附上 App 版本、设备与系统、操作步骤和实际表现，截图请遮住私人信息。
 
 想参与开发，可阅读 [贡献指南](CONTRIBUTING.md)；想了解每版变化，可查看 [更新记录](CHANGELOG.md)。

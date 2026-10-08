@@ -16,3 +16,7 @@
 截图中的项目：[Termux](https://github.com/termux/termux-app)、[scrcpy](https://github.com/Genymobile/scrcpy)、[Flutter](https://github.com/flutter/flutter)。项目内容和数据会随时间变化。
 
 本目录其余图片保留先前采集结果；以上六张用于当前根目录 README。
+
+## 使用体验问卷图片
+
+[feedback-survey.jpg](./feedback-survey.jpg) 由用户于 2026-10-08 提供，原图直接复制，用于 README 末尾的问卷星意见收集入口；未修改图片内容。
