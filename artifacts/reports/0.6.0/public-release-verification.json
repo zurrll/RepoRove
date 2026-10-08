@@ -1,0 +1,58 @@
+{
+  "repository": "https://github.com/zurrll/RepoRove",
+  "visibility": "public",
+  "license": "MIT",
+  "releases": [
+    {
+      "version": "0.1.0",
+      "bytes": 4058675,
+      "sha256": "1323d93ec0e1976666999ff25bbf979cbce456fb221418d8a36a43413bc7fec4",
+      "assets": 4,
+      "anonymousDownload": "HTTP 200"
+    },
+    {
+      "version": "0.2.0",
+      "bytes": 4472404,
+      "sha256": "75be31c740d92b224ade2037d9c34adaa246a36a4e30bb67adb3f46eb9897456",
+      "assets": 4,
+      "anonymousDownload": "HTTP 200"
+    },
+    {
+      "version": "0.3.0",
+      "bytes": 4669012,
+      "sha256": "07a38ddd7d85ed5c1ffd38a50ab398e35927f126dcc09a88a3cda554af9caf5c",
+      "assets": 4,
+      "anonymousDownload": "HTTP 200"
+    },
+    {
+      "version": "0.4.0",
+      "bytes": 4701780,
+      "sha256": "4f55e056d80abfcdf70244baa4d4d37be407c0a5cd2a8920008f0466fe538b59",
+      "assets": 4,
+      "anonymousDownload": "HTTP 200"
+    },
+    {
+      "version": "0.4.1",
+      "bytes": 4689293,
+      "sha256": "dcbcdd26ec6e491e2b0973847e63a466e28c8d53d362d68106b29abe942275b2",
+      "assets": 4,
+      "anonymousDownload": "HTTP 200"
+    },
+    {
+      "version": "0.5.0",
+      "bytes": 4914839,
+      "sha256": "b313d2228e95ad75b47b8940371abf77e0f5cdf0493f8d601353b8da75ecea19",
+      "assets": 4,
+      "anonymousDownload": "HTTP 200"
+    },
+    {
+      "version": "0.6.0",
+      "bytes": 4869974,
+      "sha256": "d1b378f8e084a8efb06a7a08d35b388aa5675acd15ce7b323ce901cd4663f43e",
+      "assets": 4,
+      "anonymousDownload": "HTTP 200"
+    }
+  ],
+  "latestAnonymousDownloadedAndSha256Verified": true,
+  "publicScreenshots": 6
+}

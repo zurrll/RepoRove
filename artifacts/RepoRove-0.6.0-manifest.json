@@ -72,5 +72,13 @@
       "url": "https://github.com/zurrll/RepoRove/actions/runs/37733604358"
     }
   },
-  "sourceCommit": "1b80cbb83e43d70f5e9c60960fd194dc51f059cd"
+  "sourceCommit": "1b80cbb83e43d70f5e9c60960fd194dc51f059cd",
+  "publication": {
+    "repository": "https://github.com/zurrll/RepoRove",
+    "license": "MIT",
+    "releaseUrl": "https://github.com/zurrll/RepoRove/releases/tag/v0.6.0",
+    "remoteAssetsVerified": 28,
+    "historicalVersionsPublished": 7,
+    "anonymousApkDownloadedAndSha256Verified": true
+  }
 }
