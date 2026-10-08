@@ -1,0 +1,10 @@
+{
+  "client_id": "Ov23lionauwFKCx2wg1P",
+  "endpoint": "https://github.com/login/device/code",
+  "verification_uri": "https://github.com/login/device",
+  "expires_in": 899,
+  "interval": 5,
+  "official_start": "PASS",
+  "scope": "read:user read:org public_repo notifications",
+  "account_authorization": "not yet exercised"
+}

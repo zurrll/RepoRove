@@ -147,19 +147,22 @@ class AccountModel(private val container: AppContainer) : ViewModel() {
     private var generation = 0L
 
     fun tokenLogin(token: String) = launch { container.repository.login(token) }
-    fun deviceLogin(privateRepositories: Boolean) = launch {
+    fun deviceLogin(privateRepositories: Boolean) = launch { requestGeneration ->
         val code = container.deviceLogin.start(privateRepositories)
+        if (generation != requestGeneration) throw CancellationException()
         mutableCode.value = code
-        container.repository.login(container.deviceLogin.awaitToken(code))
+        val grant = container.deviceLogin.awaitToken(code)
+        if (generation != requestGeneration) throw CancellationException()
+        container.repository.login(grant.accessToken, grant.metadata)
     }
-    fun cancel() { generation++; job?.cancel(); mutableCode.value = null; mutableBusy.value = false }
-    private fun launch(block: suspend () -> Unit) {
+    fun cancel() { generation++; job?.cancel(); mutableCode.value = null; mutableBusy.value = false; mutableError.value = null }
+    private fun launch(block: suspend (Long) -> Unit) {
         if (mutableBusy.value) return
         mutableBusy.value = true
         mutableError.value = null
         val requestGeneration = ++generation
         job = viewModelScope.launch {
-            try { block() }
+            try { block(requestGeneration) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { if (generation == requestGeneration) mutableError.value = userMessage(e) }
             finally { if (generation == requestGeneration) { mutableBusy.value = false; mutableCode.value = null } }

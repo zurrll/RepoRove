@@ -5,6 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import app.reporove.core.model.User
+import app.reporove.core.model.OAuthMetadata
 import app.reporove.core.network.AppJson
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -14,7 +15,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-@Serializable data class StoredAccount(val token: String, val user: User)
+@Serializable data class StoredAccount(val token: String, val user: User, val oauth: OAuthMetadata? = null, val cacheScope: String? = null, val needsIdentityValidation: Boolean = false)
 
 /** Only an AES-GCM encrypted blob is stored; the key stays in Android Keystore. */
 class Credentials(context: Context) {

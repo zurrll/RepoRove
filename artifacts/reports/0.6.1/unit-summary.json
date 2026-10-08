@@ -1,0 +1,68 @@
+{
+  "version": "0.6.1",
+  "unit_tests": 53,
+  "unit_failures": 0,
+  "unit_errors": 0,
+  "unit_suites": [
+    {
+      "name": "app.reporove.ContentTest",
+      "tests": 6,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.DownloadFileTypesTest",
+      "tests": 2,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.RecommendationTest",
+      "tests": 5,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.PagedModelTest",
+      "tests": 3,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.NetworkTest",
+      "tests": 2,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.ReaderNavigationTest",
+      "tests": 3,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.ReadingAndSearchTest",
+      "tests": 7,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.OfflineReadingTest",
+      "tests": 6,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.ActivityLinksTest",
+      "tests": 4,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.PreferencesTest",
+      "tests": 4,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.DeviceLoginTest",
+      "tests": 8,
+      "failures": 0
+    },
+    {
+      "name": "app.reporove.ResponseCacheTest",
+      "tests": 3,
+      "failures": 0
+    }
+  ]
+}

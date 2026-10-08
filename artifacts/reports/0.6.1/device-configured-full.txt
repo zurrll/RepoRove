@@ -1,0 +1,55 @@
+
+app.reporove.CoreFlowTest:..
+Error in nativeLongCodeCanSwipeAndFindMarksTheMatchingText(app.reporove.CoreFlowTest):
+java.lang.AssertionError: code=1080x50083 lines=1001 selection=0-0 textScrollY=0 scroll=0, scroller=1080x1003, child=50083, location=[0, 1334]
+	at app.reporove.CoreFlowTest.nativeLongCodeCanSwipeAndFindMarksTheMatchingText(CoreFlowTest.kt:425)
+	... 55 trimmed
+Caused by: androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 8000 ms
+	at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:504)
+	at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:339)
+	at app.reporove.CoreFlowTest.nativeLongCodeCanSwipeAndFindMarksTheMatchingText(CoreFlowTest.kt:408)
+	... 56 more
+..
+Error in nonReadmeMarkdownScrollsAfterSwitchingModeInsideRepository(app.reporove.CoreFlowTest):
+java.lang.AssertionError: "{\"h\":431,\"y\":0,\"body\":5160.27978515625,\"title\":\"Linked Guide\"}"
+	at app.reporove.CoreFlowTest.nonReadmeMarkdownScrollsAfterSwitchingModeInsideRepository(CoreFlowTest.kt:372)
+	... 55 trimmed
+Caused by: androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 8000 ms
+	at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:504)
+	at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:339)
+	at app.reporove.CoreFlowTest.nonReadmeMarkdownScrollsAfterSwitchingModeInsideRepository(CoreFlowTest.kt:371)
+	... 56 more
+...............
+app.reporove.MetadataFeaturesTest:.
+app.reporove.UpgradeCleanupTest:.
+app.reporove.DownloadDeletionTest:....
+app.reporove.RepositoryPolicyTest:..
+app.reporove.BrowserLoginFlowTest:..
+app.reporove.OAuthAccountTest:....
+app.reporove.DownloadOpenTest:...
+
+Time: 183.835
+There were 2 failures:
+1) nativeLongCodeCanSwipeAndFindMarksTheMatchingText(app.reporove.CoreFlowTest)
+java.lang.AssertionError: code=1080x50083 lines=1001 selection=0-0 textScrollY=0 scroll=0, scroller=1080x1003, child=50083, location=[0, 1334]
+	at app.reporove.CoreFlowTest.nativeLongCodeCanSwipeAndFindMarksTheMatchingText(CoreFlowTest.kt:425)
+	... 55 trimmed
+Caused by: androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 8000 ms
+	at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:504)
+	at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:339)
+	at app.reporove.CoreFlowTest.nativeLongCodeCanSwipeAndFindMarksTheMatchingText(CoreFlowTest.kt:408)
+	... 56 more
+2) nonReadmeMarkdownScrollsAfterSwitchingModeInsideRepository(app.reporove.CoreFlowTest)
+java.lang.AssertionError: "{\"h\":431,\"y\":0,\"body\":5160.27978515625,\"title\":\"Linked Guide\"}"
+	at app.reporove.CoreFlowTest.nonReadmeMarkdownScrollsAfterSwitchingModeInsideRepository(CoreFlowTest.kt:372)
+	... 55 trimmed
+Caused by: androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 8000 ms
+	at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:504)
+	at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:339)
+	at app.reporove.CoreFlowTest.nonReadmeMarkdownScrollsAfterSwitchingModeInsideRepository(CoreFlowTest.kt:371)
+	... 56 more
+
+FAILURES!!!
+Tests run: 38,  Failures: 2
+
+

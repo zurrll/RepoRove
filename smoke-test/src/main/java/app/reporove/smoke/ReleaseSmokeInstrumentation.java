@@ -17,10 +17,35 @@ import java.io.FileOutputStream;
 
 /** Exercises the actual R8 artifact using Android accessibility, without target-library dependencies. */
 public final class ReleaseSmokeInstrumentation extends Instrumentation {
-    @Override public void onCreate(Bundle arguments) { super.onCreate(arguments); start(); }
+    private int networkRetries;
+    private boolean oauthProbe;
+    @Override public void onCreate(Bundle arguments) { super.onCreate(arguments); oauthProbe = arguments != null && "true".equals(arguments.getString("oauth_probe")); start(); }
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
+            if (oauthProbe) {
+                getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                AccessibilityNodeInfo dismiss = find(getUiAutomation().getRootInActiveWindow(), "button", "暂不");
+                if (dismiss != null) click(dismiss);
+                click(waitFor("desc", "我的"));
+                click(waitFor("button", "通过浏览器登录"));
+                waitFor("button", "复制授权码并打开 GitHub");
+                String code = authorizationCode(getUiAutomation().getRootInActiveWindow());
+                if (code == null) throw new AssertionError("Official device authorization code was not displayed");
+                Bundle challenge = new Bundle(); challenge.putString("user_code", code); challenge.putString("verification_uri", "https://github.com/login/device");
+                sendStatus(1, challenge);
+                long deadline = SystemClock.elapsedRealtime() + 540000;
+                do {
+                    if (find(getUiAutomation().getRootInActiveWindow(), "button", "退出账号") != null || find(getUiAutomation().getRootInActiveWindow(), "button", "我的组织") != null) {
+                        result.putString("result", "PASS: actual R8 APK completed official Device Flow and displayed the signed-in profile");
+                        finish(Activity.RESULT_OK, result); return;
+                    }
+                    SystemClock.sleep(500);
+                } while (SystemClock.elapsedRealtime() < deadline);
+                click(waitFor("button", "取消登录"));
+                result.putString("result", "Official challenge displayed; account authorization not completed during this probe");
+                finish(Activity.RESULT_CANCELED, result); return;
+            }
             runOnMainSync(() -> ((android.content.ClipboardManager) getTargetContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE))
                 .setPrimaryClip(android.content.ClipData.newPlainText("GitHub link", "https://github.com/termux/termux-app")));
             getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -60,7 +85,7 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             capture("release-restored-code");
             click(waitFor("button", "发布"));
             click(waitFor("button", "下载文件"));
-            waitFor("text", "版本说明"); capture("release-notes-first");
+            waitForNetwork("text", "版本说明"); capture("release-notes-first");
             click(waitFor("button", "跳到下载"));
             waitForWithScroll("text", "源码 ZIP"); capture("release-downloads");
             getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
@@ -77,7 +102,7 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             click(waitFor("desc", "返回"));
             click(waitFor("button", "项目库"));
             click(waitFor("button", "离线与最近阅读"));
-            waitFor("button", "阅读");
+            waitForNetwork("button", "阅读");
             shell("svc wifi disable");
             shell("svc data disable");
             android.net.ConnectivityManager connectivity = getTargetContext().getSystemService(android.net.ConnectivityManager.class);
@@ -96,10 +121,11 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             waitFor("text", "尚未保存离线仓库");
             getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             click(waitFor("desc", "我的")); click(waitFor("desc", "设置")); click(waitFor("button", "关于"));
-            click(waitFor("button", "版本更新记录")); waitFor("text", "0.6.0 · 当前"); capture("release-version-history");
+            click(waitFor("button", "版本更新记录")); waitFor("text", "0.6.1 · 当前"); capture("release-version-history");
             shell("svc wifi enable");
             shell("svc data enable");
             result.putString("result", "PASS: R8 APK prompts for clipboard links, saves a real GitHub snapshot with production foreground service, opens README and code with no active network, opens the file tree, deletes the snapshot, shows version history, and passes existing search/header/release/profile flows");
+            result.putInt("network_retries", networkRetries);
             finish(Activity.RESULT_OK, result);
         } catch (Throwable error) {
             shell("svc wifi enable"); shell("svc data enable"); capture("release-failure"); result.putString("result", "FAIL"); result.putString("error", Log.getStackTraceString(error)); finish(Activity.RESULT_CANCELED, result);
@@ -108,6 +134,13 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
     private void shell(String command) {
         try (android.os.ParcelFileDescriptor result = getUiAutomation().executeShellCommand(command); java.io.FileInputStream input = new java.io.FileInputStream(result.getFileDescriptor())) { while (input.read() >= 0) {} }
         catch (Exception error) { throw new RuntimeException(error); }
+    }
+    private String authorizationCode(AccessibilityNodeInfo node) {
+        if (node == null) return null;
+        String text = node.getText() == null ? "" : node.getText().toString();
+        if (text.matches("[A-Z0-9]{4}-[A-Z0-9]{4}")) return text;
+        for (int i = 0; i < node.getChildCount(); i++) { String code = authorizationCode(node.getChild(i)); if (code != null) return code; }
+        return null;
     }
     private AccessibilityNodeInfo find(AccessibilityNodeInfo node, String mode, String value) {
         if (node == null) return null;
@@ -127,6 +160,30 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
     private AccessibilityNodeInfo waitFor(String mode, String value) {
         long deadline = SystemClock.elapsedRealtime() + 45000;
         do { AccessibilityNodeInfo found = find(getUiAutomation().getRootInActiveWindow(), mode, value); if (found != null) return found; SystemClock.sleep(300); } while (SystemClock.elapsedRealtime() < deadline);
+        throw new AssertionError("Missing " + mode + ": " + value);
+    }
+    /** Retry only an explicit network failure, with the same visible user action. */
+    private AccessibilityNodeInfo waitForNetwork(String mode, String value) {
+        long deadline = SystemClock.elapsedRealtime() + 90000;
+        int retries = 0;
+        do {
+            AccessibilityNodeInfo root = getUiAutomation().getRootInActiveWindow();
+            AccessibilityNodeInfo found = find(root, mode, value);
+            if (found != null) return found;
+            if (find(root, "text", "网络连接失败，请检查网络后重试。") != null) {
+                AccessibilityNodeInfo retry = find(root, "button", "重试");
+                if (retry == null || retries >= 2) throw new AssertionError("Network failed while waiting for " + value);
+                capture("release-network-retry-" + value + "-" + (retries + 1));
+                // Taking a screenshot can outlive an accessibility node's identity.
+                retry = find(getUiAutomation().getRootInActiveWindow(), "button", "重试");
+                if (retry != null && retry.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                    retries++;
+                    networkRetries++;
+                    SystemClock.sleep(1000);
+                }
+            }
+            SystemClock.sleep(300);
+        } while (SystemClock.elapsedRealtime() < deadline);
         throw new AssertionError("Missing " + mode + ": " + value);
     }
     private AccessibilityNodeInfo findScrollable(AccessibilityNodeInfo node) {

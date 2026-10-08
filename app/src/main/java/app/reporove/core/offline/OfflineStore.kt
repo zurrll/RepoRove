@@ -99,7 +99,7 @@ class OfflineStore(private val root: File, private val repository: GitHubReposit
 
     suspend fun save(request: SaveRequest) = withContext(Dispatchers.IO) {
         require(request.documents || request.code) { "至少选择一项。" }
-        val bound = repository.boundSource(); val capturedGeneration = generation
+        val bound = repository.authenticatedSource(); val capturedGeneration = generation
         fun active() { check(bound.active() && capturedGeneration == generation) { "账号状态已变化，保存已停止。" } }
         suspend fun report(value: SaveProgress) { active(); status(request.fullName, value.copy(scope = bound.scope)) { bound.active() && generation == capturedGeneration } }
         val id = UUID.randomUUID().toString()

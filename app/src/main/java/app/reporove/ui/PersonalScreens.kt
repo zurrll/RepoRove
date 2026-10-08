@@ -149,31 +149,41 @@ private fun <T> List<T>.moved(value: T, offset: Int): List<T> {
     val error by model.error.collectAsStateWithLifecycle()
     var token by remember { mutableStateOf("") }
     var privateRepositories by rememberSaveable { mutableStateOf(false) }
+    var useToken by rememberSaveable { mutableStateOf(false) }
     var logout by remember { mutableStateOf(false) }
     LazyColumn {
         if (account == null) {
             item { SectionTitle("连接你的 GitHub") }
-            item { Note("登录后同步 Star、访问你的仓库并处理通知。访问令牌加密保存在手机上。") }
-            if (BuildConfig.GITHUB_OAUTH_CLIENT_ID.isNotBlank()) item {
-                Column(Modifier.padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(privateRepositories, { privateRepositories = it }); Text("同时访问私有仓库") }
-                    Button(enabled = !busy, onClick = { model.deviceLogin(privateRepositories) }) { Text("通过浏览器登录") }
+            item { Note("登录后同步 Star、访问你的仓库并处理通知。登录凭据加密保存在手机上。") }
+            if (app.container.deviceLogin.configured) item {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("在 GitHub 官方网页确认授权，无需手动创建访问令牌。", style = MaterialTheme.typography.bodyMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(privateRepositories, { privateRepositories = it }, enabled = !busy); Text("同时访问私有仓库") }
+                    Text(if (privateRepositories) "GitHub 的 repo 授权范围较广，包含私有仓库读写。仅在需要访问私有项目时开启。" else "请求个人资料、组织、通知与公开仓库权限。GitHub 的公开仓库授权包含写权限，用于 Star 等操作。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (code == null) Button(enabled = !busy, onClick = { model.deviceLogin(privateRepositories) }) { Text(if (busy) "正在连接 GitHub…" else "通过浏览器登录") }
+                    if (busy && code == null) { LoadingIndicator(); TextButton(onClick = model::cancel) { Text("取消登录") } }
                 }
             }
             code?.let { deviceCode -> item {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("在 GitHub 输入此授权码", style = MaterialTheme.typography.bodyMedium)
+                    Text("复制授权码，在 GitHub 官方网页粘贴并确认", style = MaterialTheme.typography.bodyMedium)
                     Text(deviceCode.userCode, style = MaterialTheme.typography.headlineSmall)
-                    Row { TextButton(onClick = { app.action("copy-auth", "已复制授权码") { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("GitHub 授权码", deviceCode.userCode))) } }) { Text("复制授权码") }; TextButton(onClick = { openUrl(context, deviceCode.verificationUri) }) { Text("打开 GitHub 授权") } }
+                    Button(onClick = { app.action("copy-auth") {
+                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("GitHub 授权码", deviceCode.userCode)))
+                        openUrl(context, deviceCode.verificationUri)
+                    } }) { Text("复制授权码并打开 GitHub") }
+                    Text("授权码约 ${deviceCode.expiresIn / 60} 分钟内有效。确认后回到 RepoRove，将自动完成登录。", style = MaterialTheme.typography.bodyMedium)
+                    Row { TextButton(onClick = { openUrl(context, deviceCode.verificationUri) }) { Text("重新打开授权页") }; TextButton(onClick = { app.action("copy-auth", "已复制授权码") { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("GitHub 授权码", deviceCode.userCode))) } }) { Text("仅复制") } }
                     TextButton(onClick = model::cancel) { Text("取消登录") }
                 }
             } }
-            item {
+            error?.let { item { Text(it, Modifier.padding(horizontal = 20.dp, vertical = 12.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) } }
+            if (app.container.deviceLogin.configured) item { TextButton(enabled = !busy, onClick = { useToken = !useToken }, modifier = Modifier.padding(horizontal = 12.dp)) { Text(if (useToken) "收起访问令牌登录" else "使用访问令牌登录") } }
+            if (useToken || !app.container.deviceLogin.configured) item {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(token, { token = it }, Modifier.fillMaxWidth(), label = { Text("GitHub 访问令牌") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false))
                     Button(enabled = token.isNotBlank() && !busy, onClick = { model.tokenLogin(token) }) { Text(if (busy) "正在连接…" else "使用令牌登录") }
-                    if (busy && code == null) LoadingIndicator()
-                    error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+                    if (busy && !app.container.deviceLogin.configured) { LoadingIndicator(); TextButton(onClick = model::cancel) { Text("取消登录") } }
                     TextButton(onClick = { openUrl(context, "https://github.com/settings/tokens") }) { Text("在 GitHub 创建访问令牌") }
                     Text("建议使用 classic PAT。Star 需要 public_repo，收件箱需要 notifications，组织需要 read:org；私有仓库需要 repo。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -187,6 +197,7 @@ private fun <T> List<T>.moved(value: T, offset: Int): List<T> {
 }
 
 @Composable fun DownloadsScreen(app: AppModel) {
+    val context = LocalContext.current
     val records by app.container.local.downloads.collectAsStateWithLifecycle(emptyList())
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var progress by remember { mutableStateOf<Map<Long, DownloadProgress?>>(emptyMap()) }
@@ -217,7 +228,7 @@ private fun <T> List<T>.moved(value: T, offset: Int): List<T> {
                 Text("${record.repository} · $status", style = MaterialTheme.typography.bodySmall)
                 if (item?.status == DownloadManager.STATUS_RUNNING && item.total > 0) LinearProgressIndicator(progress = { (item.bytes.toFloat() / item.total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                 Row {
-                    if (item?.status == DownloadManager.STATUS_SUCCESSFUL) TextButton(onClick = { app.action("open:${record.id}") { app.container.downloads.open(record.id) } }) { Text("打开文件") }
+                    if (item?.status == DownloadManager.STATUS_SUCCESSFUL) TextButton(enabled = "open:${record.id}" !in busy, onClick = { app.action("open:${record.id}") { app.container.downloads.open(record.id, context) } }) { Text(if ("open:${record.id}" in busy) "正在打开…" else "打开文件") }
                     if (canLocate) TextButton(enabled = progress.containsKey(record.id) && "remove:${record.id}" !in busy, onClick = { remove = record }) { Text(if (running) "取消下载" else "删除文件") }
                     if (progress.containsKey(record.id) && item == null) TextButton(enabled = "forget:${record.id}" !in busy, onClick = { forget = record }) { Text("移除记录") }
                 }

@@ -1,0 +1,10 @@
+
+app.reporove.BrowserLoginFlowTest:..
+app.reporove.OAuthAccountTest:....
+app.reporove.DownloadOpenTest:...
+
+Time: 16.89
+
+OK (9 tests)
+
+

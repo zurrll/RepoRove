@@ -12,10 +12,10 @@ class RepoRoveApplication : Application() {
     val container: AppContainer by lazy { AppContainer(this) }
 }
 
-class AppContainer(application: Application, apiFactory: (String?) -> GitHubApi = { createApi(it) }) {
+class AppContainer(application: Application, val deviceLogin: DeviceLogin = DeviceLogin(BuildConfig.GITHUB_OAUTH_CLIENT_ID), apiFactory: (String?) -> GitHubApi = { createApi(it) }) {
     val catalogs = app.reporove.core.model.Catalogs(application)
     val local = LocalStore(application)
-    val repository = GitHubRepository(Credentials(application), local, ResponseCache(File(application.cacheDir, "github-responses")), apiFactory)
+    val repository = GitHubRepository(Credentials(application), local, ResponseCache(File(application.cacheDir, "github-responses")), refreshTokens = deviceLogin::refresh, apiFactory = apiFactory)
     val offline = app.reporove.core.offline.OfflineStore(File(application.filesDir, "offline-repositories"), repository)
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
     init {
@@ -23,5 +23,4 @@ class AppContainer(application: Application, apiFactory: (String?) -> GitHubApi 
         repository.beforeAccountChange = { offline.clearPrivate(); local.clearReadings() }
     }
     val downloads = Downloads(application, local)
-    val deviceLogin = DeviceLogin(BuildConfig.GITHUB_OAUTH_CLIENT_ID)
 }

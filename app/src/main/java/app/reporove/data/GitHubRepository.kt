@@ -4,6 +4,9 @@ import app.reporove.core.model.*
 import app.reporove.core.network.*
 import app.reporove.core.storage.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -29,9 +32,13 @@ class GitHubRepository(
     private val credentials: Credentials,
     val local: LocalStore,
     private val cache: ResponseCache,
+    private val refreshTokens: (suspend (OAuthGrant) -> OAuthGrant)? = null,
+    private val now: () -> Long = System::currentTimeMillis,
     private val apiFactory: (String?) -> GitHubApi = { createApi(it) },
 ) {
-    private data class Session(val api: GitHubApi, val scope: String, val user: User?)
+    private class Session(@Volatile var api: GitHubApi, val scope: String, @Volatile var account: StoredAccount?) {
+        val user: User? get() = account?.user
+    }
     private val stored = credentials.read()
     @Volatile private var session = newSession(stored)
     private val scopeState = MutableStateFlow(session.scope)
@@ -47,29 +54,39 @@ class GitHubRepository(
     var beforeAccountChange: suspend () -> Unit = {}
     data class BoundSource(val api: GitHubApi, val scope: String, val active: () -> Boolean)
     fun boundSource(): BoundSource { val current = session; return BoundSource(current.api, current.scope) { session === current } }
+    suspend fun authenticatedSource(): BoundSource {
+        val current = session
+        return BoundSource(currentApi(current), current.scope) { session === current }
+    }
     val scope: String get() = session.scope
 
-    suspend fun login(rawToken: String) = authMutex.withLock {
+    suspend fun login(rawToken: String, oauth: OAuthMetadata? = null) = authMutex.withLock {
         val token = rawToken.trim()
         require(token.length in 10..512 && token.none(Char::isWhitespace)) { "请输入有效的 GitHub 访问令牌。" }
         val user = apiFactory(token).me()
-        val account = StoredAccount(token, user)
-        withContext(Dispatchers.IO) { credentials.save(account) }
-        beforeAccountChange()
-        local.removePrivateCollections()
-        session = newSession(account)
-        scopeState.value = session.scope
-        accountState.value = user
+        currentCoroutineContext().ensureActive()
+        val account = StoredAccount(token, user, oauth)
+        // After validation, commit the credential and account boundary as one operation.
+        withContext(NonCancellable) {
+            beforeAccountChange()
+            local.removePrivateCollections()
+            withContext(Dispatchers.IO) { credentials.save(account) }
+            session = newSession(account)
+            scopeState.value = session.scope
+            accountState.value = user
+        }
     }
 
     suspend fun logout() = authMutex.withLock {
-        beforeAccountChange()
-        withContext(Dispatchers.IO) { credentials.clear() }
-        session = newSession(null)
-        scopeState.value = session.scope
-        local.removePrivateCollections()
-        cache.clear()
-        accountState.value = null
+        withContext(NonCancellable) {
+            beforeAccountChange()
+            withContext(Dispatchers.IO) { credentials.clear() }
+            session = newSession(null)
+            scopeState.value = session.scope
+            local.removePrivateCollections()
+            cache.clear()
+            accountState.value = null
+        }
     }
 
     suspend fun discover(topic: String?, sort: String, page: Int, refresh: Boolean = false): Loaded<SearchResponse<Repository>> = read("discover:$topic:$sort:$page", refresh) { it.searchRepositories(SearchQueries.discovery(topic), sort.takeIf(String::isNotBlank), page) }
@@ -166,7 +183,8 @@ class GitHubRepository(
     suspend fun privateImage(fullName: String, ref: String, path: String): ByteArray {
         val current = session
         require(current.user != null)
-        val bytes = parts(fullName).let { current.api.image(it.first, it.second, encodePath(path), ref).use { response ->
+        val api = currentApi(current)
+        val bytes = parts(fullName).let { api.image(it.first, it.second, encodePath(path), ref).use { response ->
             require(response.contentLength() <= 5 * 1024 * 1024) { "图片过大。" }
             response.byteStream().use { input ->
                 val output = java.io.ByteArrayOutputStream(); val buffer = ByteArray(8192)
@@ -270,21 +288,34 @@ class GitHubRepository(
     suspend fun isStarred(fullName: String): Boolean {
         if (account.value == null) return false
         val (owner, repo) = parts(fullName)
-        val result = session.api.isStarred(owner, repo)
+        val current = session
+        val result = currentApi(current).isStarred(owner, repo)
+        require(session === current) { "账号已切换，请重试。" }
         return when (result.code()) { 204 -> true; 404 -> false; else -> throw HttpException(result) }
     }
 
     suspend fun setStar(fullName: String, value: Boolean) {
         requireLogin()
         val (owner, repo) = parts(fullName)
-        (if (value) session.api.star(owner, repo) else session.api.unstar(owner, repo)).requireSuccess()
-        cache.invalidate(session.scope) { it == "repo:$fullName" || it.startsWith("stars:") || it.startsWith("all-stars:") || it.startsWith("public-stars:") }
+        val current = session
+        val api = currentApi(current)
+        (if (value) api.star(owner, repo) else api.unstar(owner, repo)).requireSuccess()
+        require(session === current) { "账号已切换，请刷新确认操作结果。" }
+        cache.invalidate(current.scope) { it == "repo:$fullName" || it.startsWith("stars:") || it.startsWith("all-stars:") || it.startsWith("public-stars:") }
         revisionState.value++
     }
 
     suspend fun notifications(all: Boolean, page: Int, refresh: Boolean = false): Loaded<List<Notification>> { requireLogin(); return read("inbox:$all:$page", refresh) { it.notifications(all, page) } }
-    suspend fun markRead(id: String) { requireLogin(); session.api.readNotification(id).requireSuccess(); cache.invalidate(session.scope) { it.startsWith("inbox:") } }
-    suspend fun complete(id: String) { requireLogin(); session.api.completeNotification(id).requireSuccess(); cache.invalidate(session.scope) { it.startsWith("inbox:") } }
+    suspend fun markRead(id: String) = notificationAction { it.readNotification(id).requireSuccess() }
+    suspend fun complete(id: String) = notificationAction { it.completeNotification(id).requireSuccess() }
+
+    private suspend fun notificationAction(action: suspend (GitHubApi) -> Unit) {
+        requireLogin()
+        val current = session
+        action(currentApi(current))
+        require(session === current) { "账号已切换，请刷新确认操作结果。" }
+        cache.invalidate(current.scope) { it.startsWith("inbox:") }
+    }
 
     suspend fun feed(followingUsers: Boolean, page: Int = 1, refresh: Boolean = false): Loaded<List<Event>> {
         if (followingUsers) {
@@ -306,7 +337,8 @@ class GitHubRepository(
         val cached = cache.read(current.scope, key, serializer)
         if (!refresh && cached != null && System.currentTimeMillis() - cached.cachedAt < 5 * 60 * 1000) return cached
         return try {
-            val result = fetch(current.api)
+            val result = fetch(currentApi(current))
+            require(session === current) { "账号已切换，请重试。" }
             cache.write(current.scope, key, serializer, result) { session === current }
             Loaded(result, System.currentTimeMillis())
         } catch (e: IOException) {
@@ -317,8 +349,42 @@ class GitHubRepository(
     }
 
     private fun newSession(account: StoredAccount?): Session {
-        val scope = account?.let { "${it.user.id}:" + MessageDigest.getInstance("SHA-256").digest(it.token.toByteArray()).joinToString("") { byte -> "%02x".format(byte) } } ?: "public"
-        return Session(apiFactory(account?.token), scope, account?.user)
+        val scope = account?.let { it.cacheScope ?: "${it.user.id}:" + MessageDigest.getInstance("SHA-256").digest(it.token.toByteArray()).joinToString("") { byte -> "%02x".format(byte) } } ?: "public"
+        return Session(apiFactory(account?.token), scope, account)
+    }
+
+    private suspend fun currentApi(current: Session): GitHubApi {
+        fun needsRefresh() = current.account?.oauth?.expiresAt?.let { now() + 60_000 >= it } == true
+        fun needsValidation() = current.account?.needsIdentityValidation == true
+        if (needsRefresh() || needsValidation()) authMutex.withLock {
+            require(session === current) { "账号已切换，请重试。" }
+            if (needsRefresh() || needsValidation()) {
+                // GitHub rotates refresh tokens. Finish saving the new pair even if the
+                // screen is closed mid-request; logout waits on the same mutex.
+                withContext(NonCancellable + Dispatchers.IO) {
+                    if (needsRefresh()) {
+                        val account = current.account!!
+                        val refresh = refreshTokens ?: throw IllegalArgumentException("GitHub 登录需要续期，请重新登录。")
+                        val grant = refresh(OAuthGrant(account.token, account.oauth!!))
+                        // Persist the rotated pair before /user: a temporary identity
+                        // lookup failure must not discard the only usable refresh token.
+                        val pending = StoredAccount(grant.accessToken, account.user, grant.metadata, current.scope, needsIdentityValidation = true)
+                        credentials.save(pending)
+                        current.account = pending
+                        current.api = apiFactory(grant.accessToken)
+                    }
+                    val user = current.api.me()
+                    require(user.id == current.user?.id) { "GitHub 授权账号已变化，请重新登录。" }
+                    val updated = current.account!!.copy(user = user, needsIdentityValidation = false)
+                    credentials.save(updated)
+                    current.account = updated
+                    accountState.value = user
+                }
+            }
+        }
+        currentCoroutineContext().ensureActive()
+        require(session === current) { "账号已切换，请重试。" }
+        return current.api
     }
 
     companion object {

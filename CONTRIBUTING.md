@@ -13,7 +13,7 @@
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleRelease
 ```
 
-Release 默认启用 R8，并生成未签名 APK；自行构建需要自己的签名。官方预览包可从 [Releases](https://github.com/zurrll/RepoRove/releases) 下载。设备授权登录需要配置自己的 GitHub OAuth App Client ID：`-PgithubOAuthClientId=...`；Client ID 无默认生产值，PAT 登录可直接使用。
+Release 默认启用 R8，并生成未签名 APK；自行构建需要自己的签名。官方预览包可从 [Releases](https://github.com/zurrll/RepoRove/releases) 下载。源码在 `gradle.properties` 提供 RepoRove 的公开 OAuth Client ID。派生项目可通过 `-PgithubOAuthClientId=...` 使用自己的应用标识，注册时开启 Device Flow；App 支持有期限凭据续期，不需要 Client Secret，禁止把它放入 APK。配置为空时仍可使用 PAT。注册与发布状态见 [0.6.1 登录与下载修复](0.6.1登录与下载修复.md)。
 
 ## 测试
 
@@ -34,7 +34,7 @@ Release 默认启用 R8，并生成未签名 APK；自行构建需要自己的�
 
 ## 修改约定
 
-先读 [工程说明](工程说明.md)、[当前批次](0.6.0阅读修复与公开发布.md) 与 [协作约定](AGENTS.md)。修改应有明确使用场景，并验证涉及的真实行为。
+先读 [工程说明](工程说明.md)、[当前批次](0.6.1登录与下载修复.md) 与 [协作约定](AGENTS.md)。修改应有明确使用场景，并验证涉及的真实行为。
 
 - 使用真实 GitHub 数据，保留错误与缺失状态；不把假结果写入生产页面。
 - 原生和文档共用主题语义色；阅读改动同时检查文档、普通源码和离线内容。

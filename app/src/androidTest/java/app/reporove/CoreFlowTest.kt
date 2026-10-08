@@ -288,7 +288,9 @@ class CoreFlowTest {
         launch(); compose.onNodeWithContentDescription("我的").performClick(); waitFor("访问令牌")
         compose.onNodeWithContentDescription("设置").performClick(); waitFor("关于")
         compose.onNodeWithText("关于", substring = false).performClick(); waitFor("版本更新记录")
-        compose.onNodeWithText("版本更新记录").performClick(); waitFor("0.6.0 · 当前")
+        compose.onNodeWithText("版本更新记录").performClick(); waitFor("0.6.1 · 当前")
+        compose.onNodeWithText("新增 GitHub 浏览器设备授权登录", substring = true).assertExists()
+        compose.onNodeWithText("0.6.0", substring = false).performScrollTo().performClick()
         compose.onNodeWithText("修复 README 章节定位", substring = true).assertExists()
         screenshot("version-history")
         compose.onNodeWithContentDescription("返回").performClick(); waitFor("开源许可与致谢")
@@ -380,9 +382,12 @@ class CoreFlowTest {
         compose.onNodeWithText("Long.kt", substring = false).performClick(); waitFor("1–1000 行")
         compose.waitForIdle()
         val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val nativeActions = java.util.concurrent.CopyOnWriteArrayList<Int>()
         var before = 0; val location = IntArray(2); var width = 0; var height = 0
         instrumentation.runOnMainSync {
-            var view: View? = findCodeView(activity!!.window.decorView)
+            val codeView = findCodeView(activity!!.window.decorView)!!
+            codeView.setOnTouchListener { _, event -> nativeActions += event.actionMasked; false }
+            var view: View? = codeView
             while (view != null && view !is androidx.core.widget.NestedScrollView) view = view.parent as? View
             val scroller = view as androidx.core.widget.NestedScrollView
             before = scroller.scrollY; scroller.getLocationOnScreen(location); width = scroller.width; height = scroller.height
@@ -418,7 +423,7 @@ class CoreFlowTest {
                 var view: View? = code
                 while (view != null && view !is androidx.core.widget.NestedScrollView) view = view.parent as? View
                 val scroller = view as androidx.core.widget.NestedScrollView
-                diagnostic = "code=${code.width}x${code.height} lines=${code.layout?.lineCount} selection=${code.selectionStart}-${code.selectionEnd} textScrollY=${code.scrollY} scroll=${scroller.scrollY}, scroller=${scroller.width}x${scroller.height}, child=${scroller.getChildAt(0).height}, location=${location.toList()}"
+                diagnostic = "code=${code.width}x${code.height} lines=${code.layout?.lineCount} selection=${code.selectionStart}-${code.selectionEnd} textScrollY=${code.scrollY} scroll=${scroller.scrollY}, scroller=${scroller.width}x${scroller.height}, child=${scroller.getChildAt(0).height}, location=${location.toList()}, focused=${code.hasWindowFocus()}, nativeActions=$nativeActions"
             }
             screenshot("failure-native-code-scroll"); throw AssertionError(diagnostic, error)
         }
@@ -832,6 +837,7 @@ class CoreFlowTest {
     @Test fun loginStarSearchAndNotificationMutations() {
         launch()
         compose.onNodeWithContentDescription("我的").performClick()
+        if (container.deviceLogin.configured) compose.onNodeWithText("使用访问令牌登录").performClick()
         compose.onNodeWithText("GitHub 访问令牌").performTextInput("fake-test-token")
         compose.onNodeWithText("使用令牌登录").performScrollTo()
         compose.onNodeWithText("使用令牌登录").performClick()

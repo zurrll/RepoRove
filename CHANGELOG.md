@@ -2,6 +2,12 @@
 
 各版安装包见 [Releases](https://github.com/zurrll/RepoRove/releases)。当前均为预览版，建议使用最新版本。
 
+## 0.6.1 · 2026-10-08（实施中）
+
+- 新增 GitHub 浏览器设备授权登录，保留访问令牌登录作为备选。
+- 完善授权取消、超时、权限说明与有期限登录凭据的自动续期。
+- 修复下载文件打开：按文件名识别 APK、文档和压缩包，提供系统读取授权与失败提示；APK 交给系统安装器。
+
 ## [0.6.0](https://github.com/zurrll/RepoRove/releases/tag/v0.6.0) · 2026-10-08
 
 - 修复 README 章节定位，支持 GitHub 隐藏锚点、同文件链接和离线章节跳转。

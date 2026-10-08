@@ -4,6 +4,8 @@ import android.app.DownloadManager
 import android.content.Context
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.ClipData
+import android.webkit.MimeTypeMap
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
@@ -20,6 +22,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import java.io.File
+import java.io.IOException
 
 data class DownloadProgress(val status: Int, val bytes: Long, val total: Long, val reason: Int, val localUri: String? = null)
 
@@ -64,11 +67,30 @@ class Downloads(private val context: Context, private val store: LocalStore) {
         }
     }
 
-    fun open(id: Long) {
-        val uri = manager.getUriForDownloadedFile(id) ?: throw IllegalArgumentException("下载文件已被移除。")
-        try { context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, manager.getMimeTypeForDownloadedFile(id) ?: "application/octet-stream")
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
-        catch (_: ActivityNotFoundException) { throw IllegalArgumentException("没有可以打开此文件的应用，请在 Downloads/RepoRove 中查看。") }
+    suspend fun open(id: Long, foreground: Context) {
+        val intent = openIntent(id)
+        withContext(Dispatchers.Main) {
+            try { foreground.startActivity(intent) }
+            catch (_: ActivityNotFoundException) { throw IllegalArgumentException("手机没有可打开此类文件的应用，请在 Downloads/RepoRove 中选择文件，或安装相应的阅读 / 解压应用。") }
+            catch (_: SecurityException) { throw IllegalArgumentException("系统未允许打开这个文件，请在 Downloads/RepoRove 中查看并检查系统权限。") }
+        }
+    }
+
+    /** Always use the system provider URI; hand the receiving app a temporary read grant. */
+    suspend fun openIntent(id: Long): Intent = withContext(Dispatchers.IO) {
+        val record = store.downloads.first().firstOrNull { it.id == id } ?: throw IllegalArgumentException("下载记录不存在。")
+        val status = progress(id)
+        require(status?.status == DownloadManager.STATUS_SUCCESSFUL) { "文件尚未下载完成或系统记录已移除，请刷新下载页。" }
+        val uri = manager.getUriForDownloadedFile(id) ?: throw IllegalArgumentException("下载文件已被移除，请重新下载。")
+        require(uri.scheme == "content") { "系统未提供可共享的文件地址，请在 Downloads/RepoRove 中打开。" }
+        try { context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { } ?: throw IOException("Missing file") }
+        catch (_: Exception) { throw IllegalArgumentException("下载文件不存在或无法读取，请在 Downloads/RepoRove 中检查，或重新下载。") }
+        val type = DownloadFileTypes.mime(record.name, manager.getMimeTypeForDownloadedFile(id)) {
+            MimeTypeMap.getSingleton().getMimeTypeFromExtension(it)
+        }
+        Intent(Intent.ACTION_VIEW).setDataAndType(uri, type)
+            .apply { clipData = ClipData.newRawUri(record.name, uri) }
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 
     /** Delete only a recorded file in our download directory. Keep the record if deletion cannot be verified. */
