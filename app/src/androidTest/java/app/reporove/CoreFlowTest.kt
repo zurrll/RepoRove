@@ -359,7 +359,9 @@ class CoreFlowTest {
         compose.onNodeWithText("docs", substring = false).performClick(); waitFor("guide.md")
         compose.onNodeWithText("guide.md", substring = false).performClick()
         compose.waitUntil(15000) { js("document.querySelector('h1')?.innerText === 'Linked Guide'") == "true" }
-        compose.onNodeWithContentDescription("文件操作").performClick(); compose.onNodeWithText("查看源码").performClick()
+        compose.onNodeWithContentDescription("文件操作").performClick(); compose.onNodeWithText("在源码中查找 / 跳行").performClick()
+        waitFor("查找与跳行"); compose.onNodeWithText("查找全文", substring = false).assertExists()
+        compose.onNodeWithText("关闭", substring = false).performClick()
         compose.onNodeWithContentDescription("文件操作").performClick(); compose.onNodeWithText("阅读模式").performClick()
         compose.waitUntil(15000) { js("document.querySelector('h1')?.innerText === 'Linked Guide'") == "true" }
         val x = js("window.innerWidth/2").toFloat(); val height = js("window.innerHeight").toFloat()

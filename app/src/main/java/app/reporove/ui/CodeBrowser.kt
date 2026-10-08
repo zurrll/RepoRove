@@ -81,7 +81,7 @@ import java.util.Date
                         }
                         DropdownMenuItem(text = { Text("复制整个文件") }, onClick = { menu = false; runCatching { GitHubRepository.text(file) }.getOrNull()?.let { copyText(context, file.name, it) } })
                         DropdownMenuItem(text = { Text(if (wrap) "关闭自动换行" else "自动换行") }, onClick = { menu = false; wrap = !wrap })
-                        DropdownMenuItem(text = { Text("文件内查找 / 跳行") }, onClick = { menu = false; find = true })
+                        DropdownMenuItem(text = { Text(if (rendered) "在源码中查找 / 跳行" else "文件内查找 / 跳行") }, onClick = { menu = false; readingModes = readingModes + (fileIdentity to false); find = true })
                     }
                 }
             }
