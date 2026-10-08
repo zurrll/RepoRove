@@ -1,9 +1,7 @@
 package app.reporove.ui
 
-import android.text.Selection
-import android.text.Spannable
 import android.widget.HorizontalScrollView
-import android.widget.ScrollView
+import androidx.core.widget.NestedScrollView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -54,15 +52,17 @@ import java.util.Date
         if (snapshot == null) branches.configure(fullName) { app.container.repository.branches(fullName) }
     }
     LaunchedEffect(state.path, state.loading) { if (!state.loading && state.error == null && snapshot == null) app.container.local.recordReading(ReadingRecord(browserScope, fullName, state.ref, state.path, System.currentTimeMillis())) { app.container.repository.scope == browserScope } }
-    BackHandler(enabled = state.path.isNotEmpty()) { model.open(state.path.substringBeforeLast('/', "")) }
+    BackHandler(enabled = state.canGoBack) { model.back() }
     var tree by rememberSaveable { mutableStateOf(false) }
     var quick by rememberSaveable { mutableStateOf(false) }
     var branchMenu by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
-    var rendered by rememberSaveable(state.path) { mutableStateOf(false) }
+    var readingModes by rememberSaveable { mutableStateOf(mapOf<String, Boolean>()) }
+    val fileIdentity = "${state.ref}:${state.path}"
+    val rendered = readingModes[fileIdentity] ?: (state.path.substringAfterLast('.').lowercase() in listOf("md", "markdown", "mdown") && !(state.path == initialPath && state.ref == ref && anchor.matches(Regex("L\\d+(?:-L?\\d+)?"))))
     var wrap by rememberSaveable { mutableStateOf(false) }
     var find by remember { mutableStateOf(false) }
-    var translate by remember { mutableIntStateOf(0) }
+    val fileStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     val file = state.contents.singleOrNull()?.takeIf { it.path == state.path && it.type != "dir" }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -77,10 +77,9 @@ import java.util.Date
                     if (snapshot == null) DropdownMenuItem(text = { Text("刷新代码") }, onClick = { menu = false; model.open(state.path, refresh = true) })
                     if (file != null) {
                         if (file.name.substringAfterLast('.').lowercase() in listOf("md", "markdown", "mdown")) {
-                            DropdownMenuItem(text = { Text(if (rendered) "查看源码" else "阅读模式") }, onClick = { menu = false; rendered = !rendered })
-                            if (rendered) DropdownMenuItem(text = { Text("AI 全文 / 原文") }, onClick = { menu = false; translate++ })
+                            DropdownMenuItem(text = { Text(if (rendered) "查看源码" else "阅读模式") }, onClick = { menu = false; readingModes = readingModes + (fileIdentity to !rendered) })
                         }
-                        DropdownMenuItem(text = { Text("复制内容") }, onClick = { menu = false; runCatching { GitHubRepository.text(file) }.getOrNull()?.let { copyText(context, file.name, it) } })
+                        DropdownMenuItem(text = { Text("复制整个文件") }, onClick = { menu = false; runCatching { GitHubRepository.text(file) }.getOrNull()?.let { copyText(context, file.name, it) } })
                         DropdownMenuItem(text = { Text(if (wrap) "关闭自动换行" else "自动换行") }, onClick = { menu = false; wrap = !wrap })
                         DropdownMenuItem(text = { Text("文件内查找 / 跳行") }, onClick = { menu = false; find = true })
                     }
@@ -102,8 +101,10 @@ import java.util.Date
             file != null -> {
                 val text = remember(file) { runCatching { GitHubRepository.text(file) } }
                 text.getOrNull()?.let { content ->
-                    if (rendered) MarkdownBody(content, prefs, Modifier.weight(1f), fullName, state.ref, state.path, fill = true, initialAnchor = anchor, offlineId = snapshot?.id, translationRequest = translate, privateHint = snapshot?.repository?.isPrivate)
-                    else CodePane(content, state.path, state.ref, prefs, model, Modifier.weight(1f), wrap, find, { find = false }, fullName, snapshot?.repository?.isPrivate, anchor)
+                    fileStates.SaveableStateProvider("${state.ref}:${state.path}") {
+                    if (rendered) MarkdownBody(content, prefs, Modifier.weight(1f), fullName, state.ref, state.path, fill = true, initialAnchor = anchor.takeIf { state.path == initialPath && state.ref == ref }.orEmpty(), offlineId = snapshot?.id, privateHint = snapshot?.repository?.isPrivate)
+                    else CodePane(content, state.path, state.ref, prefs, model, Modifier.weight(1f), wrap, find, { find = false }, anchor.takeIf { state.path == initialPath && state.ref == ref }.orEmpty())
+                    }
                 } ?: EmptyState("无法预览", text.exceptionOrNull()?.message)
             }
             else -> LazyColumn(Modifier.weight(1f)) {
@@ -155,13 +156,12 @@ import java.util.Date
     }
 }
 
-@Composable private fun CodePane(content: String, path: String, ref: String, prefs: Preferences, model: CodeBrowserModel, modifier: Modifier, wrap: Boolean, finding: Boolean, closeFind: () -> Unit, fullName: String, privateHint: Boolean?, anchor: String) {
+@Composable private fun CodePane(content: String, path: String, ref: String, prefs: Preferences, model: CodeBrowserModel, modifier: Modifier, wrap: Boolean, finding: Boolean, closeFind: () -> Unit, anchor: String) {
     val colors = MaterialTheme.colorScheme; val semantic = LocalSemanticColors.current
     val pages = remember(content) { codePages(content) }
     val identity = "$ref:$path"
-    var page by rememberSaveable(identity) { mutableIntStateOf(0) }
-    var selected by remember { mutableStateOf<String?>(null) }
-    var scroll by remember { mutableStateOf<ScrollView?>(null) }
+    var page by rememberSaveable(identity) { mutableIntStateOf(pages.indexOfLast { it.firstLine <= (anchor.removePrefix("L").substringBefore('-').toIntOrNull() ?: 1) }.coerceAtLeast(0)) }
+    var scroll by remember { mutableStateOf<NestedScrollView?>(null) }
     var code by remember { mutableStateOf<CodeTextView?>(null) }
     var search by remember { mutableStateOf("") }
     var line by remember { mutableStateOf("") }
@@ -174,14 +174,14 @@ import java.util.Date
             TextButton(onClick = { page--; match = -1 }, enabled = page > 0) { Text("上一段") }; Text("${current.firstLine}–${current.lastLine} 行", style = MaterialTheme.typography.labelMedium); TextButton(onClick = { page++; match = -1 }, enabled = page < pages.lastIndex) { Text("下一段") }
         }
         key(identity, page, wrap) { AndroidView(modifier = Modifier.fillMaxWidth().weight(1f), factory = { context ->
-            val view = CodeTextView(context).apply { translateSelection = { selected = it }; firstLine = current.firstLine; setHorizontallyScrolling(!wrap) }
+            val view = CodeTextView(context).apply { firstLine = current.firstLine; setHorizontallyScrolling(!wrap) }
             code = view
-            val vertical = ScrollView(context).apply { isFillViewport = true; isNestedScrollingEnabled = true }
+            val vertical = CodeScrollView(context).apply { isFillViewport = true; isNestedScrollingEnabled = true }
             scroll = vertical
             if (wrap) vertical.addView(view, android.view.ViewGroup.LayoutParams(-1, -2))
             else { val horizontal = HorizontalScrollView(context).apply { isFillViewport = true; isNestedScrollingEnabled = true; addView(view, android.view.ViewGroup.LayoutParams(-2, -2)) }; vertical.addView(horizontal, android.view.ViewGroup.LayoutParams(-1, -2)) }
             val position = model.positions["$identity:$page"] ?: (0 to 0)
-            vertical.post { vertical.scrollTo(0, position.first); (vertical.getChildAt(0) as? HorizontalScrollView)?.scrollTo(position.second, 0); pendingLine?.let { vertical.scrollTo(0, view.lineY(it)); pendingLine = null } }
+            vertical.post { vertical.scrollTo(0, position.first); (vertical.getChildAt(0) as? HorizontalScrollView)?.scrollTo(position.second, 0); pendingLine?.takeIf { it in current.firstLine..current.lastLine }?.let { vertical.scrollTo(0, view.lineY(it)); pendingLine = null } }
             vertical.setOnScrollChangeListener { _, _, y, _, _ -> model.positions["$identity:$page"] = y to ((vertical.getChildAt(0) as? HorizontalScrollView)?.scrollX ?: 0) }
             vertical
         }, update = {
@@ -196,9 +196,8 @@ import java.util.Date
         }) { Text(if (match < 0) "查找" else "下一个") }
         OutlinedTextField(line, { line = it.filter(Char::isDigit) }, label = { Text("行号（1–${pages.last().lastLine}）") }, singleLine = true)
     } }, confirmButton = { TextButton(onClick = { line.toIntOrNull()?.coerceIn(1, pages.last().lastLine)?.let { pendingLine = it }; closeFind() }) { Text("跳转") } }, dismissButton = { TextButton(onClick = closeFind) { Text("关闭") } })
-    LaunchedEffect(match, page) { if (match >= 0) { val offset = pages.take(page).sumOf { it.text.length }; code?.post { code?.markMatch(match - offset, search.length, semantic.warning.toArgb()) } } }
+    LaunchedEffect(match, page, code) { if (match >= 0) { val offset = pages.take(page).sumOf { it.text.length }; code?.post { code?.markMatch(match - offset, search.length, semantic.warning.toArgb()) } } }
     LaunchedEffect(pendingLine, page) { pendingLine?.takeIf { it in current.firstLine..current.lastLine }?.let { target -> scroll?.post { code?.let { view -> scroll?.smoothScrollTo(0, view.lineY(target)); pendingLine = null } } } }
-    selected?.let { TranslationSheet(it, fullName, privateHint, onDismiss = { selected = null }) }
 }
 
 data class CodePage(val text: String, val firstLine: Int, val lastLine: Int)
@@ -209,6 +208,6 @@ fun codePages(text: String): List<CodePage> {
 }
 
 private fun copyText(context: android.content.Context, label: String, text: String) {
-    (context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText(label, text))
-    android.widget.Toast.makeText(context, "已复制", android.widget.Toast.LENGTH_SHORT).show()
+    val result = runCatching { (context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText(label, text)) }
+    android.widget.Toast.makeText(context, if (result.isSuccess) { if (label == "路径") "已复制路径" else "已复制整个文件" } else "系统无法复制这份内容，请使用源码下载。", android.widget.Toast.LENGTH_LONG).show()
 }

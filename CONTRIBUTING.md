@@ -1,40 +1,46 @@
-# RepoRove 开发与反馈
+# 参与 RepoRove
 
-当前为私有开发仓库，源码版本 0.5.0。项目源码的开源许可证尚待确定；官方目录资产的许可证在 app/src/main/assets/catalog/ 中保留。
+欢迎先通过 [Issues](https://github.com/zurrll/RepoRove/issues) 分享体验问题或讨论改进。请说明版本、设备、步骤及实际表现；不要提交令牌、私有仓库内容或签名文件。
 
-## 开发前阅读
+项目采用 [MIT](LICENSE)。生产 App 位于 `app/`，早期网页原型在 `前期资料/`，仅供回看产品设计。
 
-用户反馈先写入 [待处理体验反馈](./待处理体验反馈.md)，读代码和讨论方案后等待批次实施指令，不因单条反馈自动改代码或发布 APK。以 [协作约定](./AGENTS.md) 为准。
+## 构建
 
-先阅读 [README](./README.md)、[文档索引](./文档索引.md)、[最新批次记录](./0.5.0离线阅读与翻译实现.md) 与 [工程说明](./工程说明.md)。历史原型位于前期资料/；生产功能在 app/ 中实现，使用真实 GitHub API。
-
-## 本地构建与检查
-
-准备 JDK 17、Android SDK Platform 36 与 Build Tools 35.0.0，在未跟踪的 local.properties 配置 sdk.dir，或设置 ANDROID_HOME。
+使用 JDK 17、Android SDK Platform 36 和 Build Tools 35.0.0。设置 `ANDROID_HOME`，或在不提交的 `local.properties` 写入 `sdk.dir`。
 
 ```sh
 ./gradlew :app:assembleDebug
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleRelease
 ```
 
-CI 使用 .github/workflows/android.yml。设备测试需要连接设备或启动模拟器：
+Release 默认启用 R8，并生成未签名 APK；自行构建需要自己的签名。官方预览包可从 [Releases](https://github.com/zurrll/RepoRove/releases) 下载。设备授权登录需要配置自己的 GitHub OAuth App Client ID：`-PgithubOAuthClientId=...`；Client ID 无默认生产值，PAT 登录可直接使用。
+
+## 测试
 
 ```sh
+./gradlew :app:assembleDebugAndroidTest
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-真实 GitHub 网络测试单独启用，参考 [验收记录](./验收记录.md)；不要用真实凭据替代确定性测试夹具。测试只证明其覆盖的行为，目标手机与私有权限验证仍独立记录。
+确定性设备测试使用本机 HTTP 夹具，不依赖真实令牌。真实 GitHub API / 下载测试需主动启用；独立 `smoke-test` 用于实际 R8 包的生产流程验证。CI 构建、运行单元测试并检查 Debug / Release lint，不冒充已完成真机测试。
 
-## 约束
+内存较小的电脑建议限制为两个 worker，并把构建与模拟器分开运行：
 
-- 生产页面读取官方数据，不添加假仓库、伪造成功状态或固定推荐名单；产品排序策略集中定义并注明来源。
-- 主题共用语义色和组件，阅读页包含原生与 HTML 两种渲染，修改时同时检查。
-- 稍后看、GitHub Star、Watch 与 App 内跟踪各有用途，不混用数据或删除语义。
-- 删除下载文件需要核验磁盘结果；失败保留记录。保持账号隔离与错误状态。
-- 不提交 PAT、OAuth 凭据、签名密钥、local.properties、SDK 或缓存。OAuth Client ID 通过构建参数提供，发布配置在本机或 CI 秘密配置中管理。
-- 更新目录使用 scripts/update_catalogs.py，保留来源、固定 revision 和第三方许可证。
-- 行为变化同步更新需求/实施文档，说明验证结果和剩余边界。反馈缺陷提供具体步骤，截图中遮盖凭据与私有信息。
+```sh
+./gradlew :app:assembleDebug --no-daemon --max-workers=2 \
+  -Dorg.gradle.jvmargs='-Xmx2048m -Dfile.encoding=UTF-8' \
+  -Pkotlin.compiler.execution.strategy=in-process
+```
 
-## 仓库与产物
+## 修改约定
 
-main 是当前开发基线。源码、文档、Gradle Wrapper 和审阅过的轻量验收材料纳入 Git；APK、R8 mapping、本机工具、源码备份和临时失败日志保留本地。安装包发布另行决定，不把构建产物写入源码历史。
+先读 [工程说明](工程说明.md)、[当前批次](0.6.0阅读修复与公开发布.md) 与 [协作约定](AGENTS.md)。修改应有明确使用场景，并验证涉及的真实行为。
+
+- 使用真实 GitHub 数据，保留错误与缺失状态；不把假结果写入生产页面。
+- 原生和文档共用主题语义色；阅读改动同时检查文档、普通源码和离线内容。
+- 保持账号隔离；令牌仅发送到受约束的 API 主机。
+- 下载删除核验磁盘结果；失败保留记录。稍后看、Star、跟踪与 Watch 的语义保持清楚。
+- 更新目录使用 `scripts/update_catalogs.py`，保留来源版本、署名和第三方许可证。
+- 行为变化更新本轮文档与 `changelog.json`；历史记录保留其当时状态。
+
+APK、密钥、SDK、本机设置、缓存和 R8 mapping 不提交到源码仓库。集中完成授权批次后再出包，日常反馈先记录。新建分支默认用 `codex/` 前缀。

@@ -1,5 +1,7 @@
 package app.reporove.ui
 
+import app.reporove.core.reader.ReaderDocument
+
 import android.app.DownloadManager
 import android.content.ClipData
 import androidx.compose.foundation.layout.*
@@ -62,14 +64,18 @@ private fun <T> List<T>.moved(value: T, offset: Int): List<T> {
         item { ActionRow("仓库布局", "${prefs.repoTabs.size} 个常驻栏目 · 全仓库共用") { nav.settingsSection("repository") } }
         item { ActionRow("推荐兴趣", "${prefs.interests.size} 个兴趣 · 也可在为你调整", nav::interests) }
         item { ActionRow("推荐排除", "${prefs.mutedRepositories.size} 个项目 · ${prefs.mutedTopics.size} 个主题") { nav.settingsSection("feedback") } }
-        item { ActionRow("AI 翻译", "全文与选段 · 自定义服务") { nav.settingsSection("translation") } }
         item { ActionRow("关于", "RepoRove ${BuildConfig.VERSION_NAME}") { nav.settingsSection("about") } }
     }
 }
 
 @Composable fun SettingsDetailScreen(app: AppModel, prefs: Preferences, nav: AppNavigation, section: String) {
+    if (section == "licenses") {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val notices = remember { context.assets.open("licenses/notices.md").bufferedReader().use { it.readText() } }
+        MarkdownBody(notices, prefs, Modifier.fillMaxSize(), fill = true, renderedHtml = ReaderDocument.localMarkdown(notices))
+        return
+    }
     if (section == "history") { VersionHistoryScreen(); return }
-    if (section == "translation") { TranslationSettings(app); return }
     if (section == "feedback") { RecommendationExclusionsScreen(app, prefs); return }
     var reset by remember { mutableStateOf(false) }
     val resetLabel = when (section) { "appearance" -> "恢复默认外观与阅读"; "navigation" -> "恢复默认导航"; else -> "恢复默认仓库布局" }
@@ -115,6 +121,9 @@ private fun <T> List<T>.moved(value: T, offset: Int): List<T> {
         }
         if (section == "about") {
             item { SectionTitle("RepoRove ${BuildConfig.VERSION_NAME}") }
+            item { ActionRow("项目主页", "MIT 开源 · 源码与反馈") { nav.repo("zurrll/RepoRove") } }
+            item { ActionRow("使用指南", "登录、阅读、离线与下载") { nav.code("zurrll/RepoRove", "main", "docs/使用指南.md") } }
+            item { ActionRow("开源许可与致谢", "本机可查看") { nav.settingsSection("licenses") } }
             item { ActionRow("版本更新记录", "各版新增与修改") { nav.settingsSection("history") } }
             item { Note("GitHub Android 客户端。探索使用官方目录；为你根据兴趣推荐，可选择参考 Star。") }
         } else item { TextButton(onClick = { reset = true }, Modifier.padding(20.dp)) { Text(resetLabel) } }

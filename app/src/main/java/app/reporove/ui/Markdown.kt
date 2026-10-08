@@ -23,6 +23,7 @@ import app.reporove.core.model.GitHubTarget
 import app.reporove.data.GitHubRepository
 import app.reporove.core.reader.ReaderDocument
 import app.reporove.core.reader.ReaderPalette
+import app.reporove.core.reader.ReaderAnchors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -31,7 +32,7 @@ import kotlinx.coroutines.withContext
 // Retained source-compatible helper for existing tests and callers.
 typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
 
-@Composable fun MarkdownBody(markdown: String, prefs: Preferences, modifier: Modifier = Modifier, fullName: String? = null, ref: String = "main", path: String = "README.md", preview: Boolean = false, fill: Boolean = false, renderedHtml: String? = null, initialAnchor: String = "", offlineId: String? = null, translationRequest: Int = 0, privateHint: Boolean? = null) {
+@Composable fun MarkdownBody(markdown: String, prefs: Preferences, modifier: Modifier = Modifier, fullName: String? = null, ref: String = "main", path: String = "README.md", preview: Boolean = false, fill: Boolean = false, renderedHtml: String? = null, initialAnchor: String = "", offlineId: String? = null, privateHint: Boolean? = null) {
     val context = LocalContext.current
     val app = LocalAppModel.current
     val nav = LocalAppNavigation.current
@@ -40,11 +41,6 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
     fun Color.css() = "#%06x".format(toArgb() and 0xffffff)
     val palette = ReaderPalette(colors.onSurface.css(), colors.onSurfaceVariant.css(), colors.background.css(), colors.outlineVariant.css(), semantic.code.css(), semantic.link.css(), semantic.success.css(), semantic.danger.css(), semantic.merged.css(), semantic.warning.css(), semantic.dark)
     var isPrivate by remember(fullName) { mutableStateOf(privateHint ?: false) }
-    var selectedText by remember { mutableStateOf<String?>(null) }
-    var translateFull by remember { mutableStateOf(false) }
-    var translatedHtml by remember(markdown, renderedHtml) { mutableStateOf<String?>(null) }
-    var showTranslated by remember(markdown, renderedHtml) { mutableStateOf(false) }
-    LaunchedEffect(translationRequest) { if (translationRequest > 0) { if (translatedHtml != null) { showTranslated = !showTranslated; app.message(if (showTranslated) "正在阅读译文" else "已切回原文") } else translateFull = true } }
     val privateDocument by rememberUpdatedState(isPrivate)
     val imageCache = remember(fullName, ref) { object : LinkedHashMap<String, ByteArray>(16, .75f, true) {} }
     var html by remember(markdown, fullName, renderedHtml) { mutableStateOf<String?>(renderedHtml) }
@@ -57,8 +53,8 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
         catch (error: CancellationException) { throw error }
         catch (_: Exception) { html = withContext(Dispatchers.Default) { ReaderDocument.localMarkdown(markdown) }; if (fill) app.message("暂时使用基础排版；联网刷新可重试 GitHub 完整格式") }
     }
-    val document by produceState<app.reporove.core.reader.PreparedDocument?>(null, html, translatedHtml, showTranslated, palette, prefs.textScale, fullName, ref, path) {
-        val source = if (showTranslated) translatedHtml ?: html else html
+    val document by produceState<app.reporove.core.reader.PreparedDocument?>(null, html, palette, prefs.textScale, fullName, ref, path) {
+        val source = html
         value = if (source == null) null else withContext(Dispatchers.Default) { ReaderDocument.prepare(source, palette, prefs.textScale, fullName, ref, path) }
     }
     var height by remember(markdown) { mutableStateOf(200) }
@@ -86,8 +82,10 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
         val snapshot = offlineId?.let(app.container.offline::find)
         val target = GitHubLinks.parse(url)
         if (snapshot != null && target is GitHubTarget.File && target.fullName == snapshot.repository.fullName) {
-            val (_, localPath) = GitHubLinks.fileParts(target.refAndPath, listOf(snapshot.sha, snapshot.ref), snapshot.sha)
-            if (snapshot.entries.any { it.path == localPath }) nav.offlineCode(snapshot.id, localPath)
+            val (localRef, localPath) = GitHubLinks.fileParts(target.refAndPath, listOf(snapshot.sha, snapshot.ref), snapshot.sha)
+            if (localRef !in listOf(snapshot.sha, snapshot.ref)) app.message("链接指向另一个版本，当前离线快照未保存该版本。")
+            else if (localPath == path && target.fragment != null) webView?.evaluateJavascript(ReaderAnchors.script(target.fragment)) { result -> if (result != "true") app.message("文档中未找到这个章节。") }
+            else if (snapshot.entries.any { it.path == localPath }) nav.offlineCode(snapshot.id, localPath, target.fragment.orEmpty())
             else app.message("这个文件未保存在当前快照中。")
         } else if (snapshot != null && target is GitHubTarget.Repo && target.fullName == snapshot.repository.fullName) nav.offlineRepo(snapshot.id)
         else nav.open(url, app) { openUrl(context, it) }
@@ -99,8 +97,7 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
         if (prepared == null) LinearProgressIndicator(Modifier.fillMaxWidth())
         else AndroidView(
             modifier = if (fill) Modifier.fillMaxWidth().weight(1f) else Modifier.fillMaxWidth().height(if (preview) 360.dp else height.coerceIn(48, 100000).dp),
-            factory = { ctx -> ReaderWebView(ctx).apply {
-                translateSelection = { selectedText = it }
+            factory = { ctx -> WebView(ctx).apply {
                 webView = this
                 setBackgroundColor(colors.background.toArgb())
                 settings.apply {
@@ -133,10 +130,17 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
                         } catch (_: Exception) { WebResourceResponse("text/plain", "UTF-8", 403, "Unavailable", emptyMap(), "".byteInputStream()) }
                     }
                     override fun onPageFinished(view: WebView, url: String?) {
-                        if (initialAnchor.isNotBlank() && !anchorApplied) { anchorApplied = true; val id = org.json.JSONObject.quote(initialAnchor.removePrefix("user-content-")); view.evaluateJavascript("(document.getElementById($id)||document.getElementById('user-content-'+$id))?.scrollIntoView()", null) }
-                        else view.scrollTo(0, restoringY)
-                        loadingDocument = false
-                        measure(view); postDelayed({ measure(view) }, 600) }
+                        view.post {
+                            loadingDocument = false
+                            if (initialAnchor.isNotBlank() && !anchorApplied) {
+                                fun locate() = view.evaluateJavascript(ReaderAnchors.script(initialAnchor)) { result -> anchorApplied = result == "true" }
+                                locate()
+                                view.postDelayed({ if (!anchorApplied) locate() }, 600)
+                            } else view.scrollTo(0, restoringY)
+                            measure(view)
+                            view.postDelayed({ measure(view) }, 600)
+                        }
+                    }
                     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                         val url = request.url.toString()
                         if (request.url.host == "reader.reporove.invalid" && request.url.path?.startsWith("/copy/") == true) {
@@ -145,13 +149,20 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
                                 Toast.makeText(context, "已复制代码", Toast.LENGTH_SHORT).show()
                             } }; return true
                         }
-                        if (request.url.host == "reader.reporove.invalid" && !request.url.fragment.isNullOrEmpty()) {
-                            val id = request.url.fragment.orEmpty().removePrefix("user-content-")
-                            val quoted = org.json.JSONObject.quote(id)
-                            evaluateJavascript("(document.getElementById($quoted)||document.getElementById('user-content-'+$quoted)||document.getElementsByName($quoted)[0])?.scrollIntoView()", null)
+                        MarkdownLinks.sameDocumentAnchor(url, fullName, ref, path)?.let { fragment ->
+                            view.evaluateJavascript(ReaderAnchors.script(fragment)) { result ->
+                                if (result != "true") app.message("文档中未找到这个章节。")
+                            }
                             return true
                         }
-                        if (request.isForMainFrame && request.url.scheme in listOf("http", "https")) navigate(url)
+                        if (request.isForMainFrame && request.url.scheme in listOf("http", "https")) {
+                            // Chromium's scroll callback can trail a link click. Capture the actual
+                            // document offset before Compose saves/disposes the outgoing reader.
+                            view.evaluateJavascript("Math.round(window.scrollY * window.devicePixelRatio)") { offset ->
+                                readingY = offset.toIntOrNull() ?: view.scrollY
+                                navigate(url)
+                            }
+                        }
                         return true
                     }
                 }
@@ -159,7 +170,16 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
                 addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
                     if (right - left != oldRight - oldLeft) post { measure(this) }
                 }
-                setOnTouchListener { _, event -> if (event.action == MotionEvent.ACTION_UP) postDelayed({ measure(this) }, 150); false }
+                setOnTouchListener { _, event ->
+                    // A bounded reader owns its native scrolling/selection gestures. Otherwise the
+                    // enclosing Compose header can intercept every swipe, even when fully collapsed.
+                    if (fill) when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> parent?.requestDisallowInterceptTouchEvent(true)
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                    if (event.actionMasked == MotionEvent.ACTION_UP) postDelayed({ measure(this) }, 150)
+                    false
+                }
             } },
             update = { view ->
                 view.setBackgroundColor(colors.background.toArgb())
@@ -181,6 +201,4 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
             },
         )
     }
-    selectedText?.let { selected -> TranslationSheet(selected, fullName, privateHint, onDismiss = { selectedText = null }) }
-    if (translateFull && html != null) TranslationSheet(html!!, fullName, privateHint, document = true, onTranslated = { translatedHtml = it; showTranslated = true; app.message("译文已保存，可用同一入口切回原文") }, onDismiss = { translateFull = false })
 }

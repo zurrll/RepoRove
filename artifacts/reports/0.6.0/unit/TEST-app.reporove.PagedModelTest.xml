@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.reporove.PagedModelTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-08T05:10:40.027Z" hostname="MacBookdeMacBook-Air.local" time="0.019">
+  <properties/>
+  <testcase name="paginationDeduplicatesAndRetryDoesNotSkipFailedPage" classname="app.reporove.PagedModelTest" time="0.011"/>
+  <testcase name="staleResultsCannotReplaceNewSearch" classname="app.reporove.PagedModelTest" time="0.005"/>
+  <testcase name="failedRefreshKeepsReadablePreviousContent" classname="app.reporove.PagedModelTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

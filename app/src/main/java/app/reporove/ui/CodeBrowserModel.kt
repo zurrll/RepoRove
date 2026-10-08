@@ -8,20 +8,22 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-data class BrowserState(val ref: String = "", val path: String = "", val contents: List<Content> = emptyList(), val loading: Boolean = true, val error: String? = null, val offline: Boolean = false, val directories: Map<String, List<Content>> = emptyMap(), val expanded: Set<String> = setOf(""), val recent: List<String> = emptyList())
+data class BrowserState(val ref: String = "", val path: String = "", val contents: List<Content> = emptyList(), val loading: Boolean = true, val error: String? = null, val offline: Boolean = false, val directories: Map<String, List<Content>> = emptyMap(), val expanded: Set<String> = setOf(""), val recent: List<String> = emptyList(), val canGoBack: Boolean = false)
 class CodeBrowserModel : ViewModel() {
     private val mutable = MutableStateFlow(BrowserState()); val state = mutable.asStateFlow()
     private var loader: (suspend (String, String, Boolean) -> Loaded<List<Content>>)? = null
     private var job: Job? = null; private var generation = 0L
+    private val history = mutableListOf<Pair<String, String>>()
     val positions = mutableMapOf<String, Pair<Int, Int>>()
     fun configure(ref: String, path: String, fetch: suspend (String, String, Boolean) -> Loaded<List<Content>>) {
         if (loader != null) return
-        loader = fetch; mutable.value = BrowserState(ref = ref, path = path); open(path)
+        loader = fetch; mutable.value = BrowserState(ref = ref, path = path); open(path, rememberHistory = false)
     }
-    fun open(path: String, ref: String = mutable.value.ref, refresh: Boolean = false) {
+    fun open(path: String, ref: String = mutable.value.ref, refresh: Boolean = false, rememberHistory: Boolean = true) {
         val fetch = loader ?: return; job?.cancel(); val current = ++generation
+        if (rememberHistory && (path != mutable.value.path || ref != mutable.value.ref)) history += mutable.value.ref to mutable.value.path
         val changingRef = ref != mutable.value.ref
-        mutable.value = mutable.value.copy(ref = ref, path = path, contents = emptyList(), loading = true, error = null, recent = if (changingRef) emptyList() else mutable.value.recent, directories = if (changingRef) emptyMap() else mutable.value.directories, expanded = if (changingRef) setOf("") else mutable.value.expanded)
+        mutable.value = mutable.value.copy(ref = ref, path = path, canGoBack = history.isNotEmpty(), contents = emptyList(), loading = true, error = null, recent = if (changingRef) emptyList() else mutable.value.recent, directories = if (changingRef) emptyMap() else mutable.value.directories, expanded = if (changingRef) setOf("") else mutable.value.expanded)
         job = viewModelScope.launch {
             try {
                 val result = fetch(ref, path, refresh)
@@ -33,6 +35,10 @@ class CodeBrowserModel : ViewModel() {
                 if (file != null) loadDirectory(path.substringBeforeLast('/', ""))
             } catch (e: CancellationException) { throw e } catch (e: Exception) { if (current == generation) mutable.value = mutable.value.copy(loading = false, error = userMessage(e)) }
         }
+    }
+    fun back() {
+        val (ref, path) = history.removeLastOrNull() ?: return
+        open(path, ref, rememberHistory = false)
     }
     fun expand(path: String) {
         mutable.value = mutable.value.copy(expanded = if (path in mutable.value.expanded) mutable.value.expanded - path else mutable.value.expanded + path)

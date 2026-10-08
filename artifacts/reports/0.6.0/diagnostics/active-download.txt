@@ -1,0 +1,35 @@
+
+app.reporove.CoreFlowTest:.....................
+app.reporove.MetadataFeaturesTest:.
+app.reporove.RepositoryPolicyTest:..
+app.reporove.DownloadDeletionTest:
+Error in cancellingActiveDownloadRemovesPartialFileAndHistory(app.reporove.DownloadDeletionTest):
+java.lang.IllegalArgumentException: 文件仍在 Downloads/RepoRove 中，删除未完成，记录已保留。请重试或在文件管理器中删除。
+	at app.reporove.data.Downloads$remove$2.invokeSuspend(Downloads.kt:100)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.internal.LimitedDispatcher$Worker.run(LimitedDispatcher.kt:124)
+	at kotlinx.coroutines.scheduling.TaskImpl.run(Tasks.kt:89)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:586)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:820)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)
+...
+app.reporove.UpgradeCleanupTest:.
+
+Time: 213.136
+There was 1 failure:
+1) cancellingActiveDownloadRemovesPartialFileAndHistory(app.reporove.DownloadDeletionTest)
+java.lang.IllegalArgumentException: 文件仍在 Downloads/RepoRove 中，删除未完成，记录已保留。请重试或在文件管理器中删除。
+	at app.reporove.data.Downloads$remove$2.invokeSuspend(Downloads.kt:100)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.internal.LimitedDispatcher$Worker.run(LimitedDispatcher.kt:124)
+	at kotlinx.coroutines.scheduling.TaskImpl.run(Tasks.kt:89)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:586)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:820)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)
+
+FAILURES!!!
+Tests run: 29,  Failures: 1

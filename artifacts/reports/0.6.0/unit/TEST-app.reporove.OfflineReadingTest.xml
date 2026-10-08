@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.reporove.OfflineReadingTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-08T05:10:39.774Z" hostname="MacBookdeMacBook-Air.local" time="0.251">
+  <properties/>
+  <testcase name="zipRejectsTraversalAbsoluteBackslashAndMultipleRoots" classname="app.reporove.OfflineReadingTest" time="0.092"/>
+  <testcase name="clipboardAcceptsSupportedObjectsAndRejectsDeceptiveHostsAndCredentials" classname="app.reporove.OfflineReadingTest" time="0.007"/>
+  <testcase name="zipIndexReconstructsDirectoriesAndReadsExactFiles" classname="app.reporove.OfflineReadingTest" time="0.003"/>
+  <testcase name="syntheticDirectoryIndexIsBoundedWhenArchiveOmitsDirectories" classname="app.reporove.OfflineReadingTest" time="0.132"/>
+  <testcase name="codePagingPreservesEveryCharacterAndSourceLineNumbers" classname="app.reporove.OfflineReadingTest" time="0.012"/>
+  <testcase name="boundedPreviewRefusesOversizedEntryWithoutExtraction" classname="app.reporove.OfflineReadingTest" time="0.004"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

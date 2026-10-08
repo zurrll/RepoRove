@@ -2,7 +2,6 @@ package app.reporove
 
 import app.reporove.core.offline.SafeArchive
 import app.reporove.core.storage.readBounded
-import app.reporove.core.translation.*
 import app.reporove.ui.clipboardGitHubLink
 import app.reporove.ui.codePages
 import kotlinx.coroutines.test.runTest
@@ -10,7 +9,6 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import org.jsoup.Jsoup
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -43,21 +41,6 @@ class OfflineReadingTest {
         val error = runCatching { SafeArchive.index(archive(*entries.toTypedArray())) }.exceptionOrNull()
         assertTrue(error is IllegalArgumentException)
         assertTrue(error!!.message.orEmpty().contains("目录索引"))
-    }
-    @Test fun translationPreservesDomLinksInlineCodeTableAndUnsafeModelTextIsEscaped() {
-        val doc = TranslationDocument("<h2 id='intro'>Intro</h2><p><a href='/a'>Link</a> and <code>foo()</code></p><table><tr><td align='right'>Value</td></tr></table><pre><code>val x = 1</code></pre>")
-        assertFalse(doc.parts.any { it.text.contains("foo()") || it.text.contains("val x") })
-        val rendered = doc.render(doc.parts.associate { it.id to "<script>bad()</script>译文" })
-        val html = Jsoup.parseBodyFragment(rendered)
-        assertEquals("intro", html.selectFirst("h2")!!.id()); assertEquals("/a", html.selectFirst("a")!!.attr("href")); assertEquals("right", html.selectFirst("td")!!.attr("align"))
-        assertEquals("foo()", html.selectFirst("p code")!!.text()); assertEquals("val x = 1", html.selectFirst("pre code")!!.text()); assertTrue(html.select("script").isEmpty())
-    }
-    @Test fun translationRejectsMissingDuplicateIdsAndKeepsLongParagraphExact() {
-        val expected = listOf(TranslationPart(0, "a"), TranslationPart(1, "b"))
-        assertTrue(runCatching { TranslationDocument.validate(expected, listOf(TranslationPart(0,"x"))) }.isFailure)
-        assertTrue(runCatching { TranslationDocument.validate(expected, listOf(TranslationPart(0,"x"),TranslationPart(0,"y"))) }.isFailure)
-        val long = "A long paragraph. ".repeat(400)
-        assertEquals(long, TranslationDocument.split(long).joinToString("")); assertTrue(TranslationDocument.split(long).all { it.length <= 1800 })
     }
     @Test fun clipboardAcceptsSupportedObjectsAndRejectsDeceptiveHostsAndCredentials() {
         assertEquals("https://github.com/owner/repo/issues/3", clipboardGitHubLink("分享 https://github.com/owner/repo/issues/3"))

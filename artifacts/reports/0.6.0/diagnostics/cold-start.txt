@@ -1,0 +1,27 @@
+
+app.reporove.CoreFlowTest:
+Error in repositoryHeaderScrollsAwayAndTabsRemainAvailable(app.reporove.CoreFlowTest):
+androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms
+	at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:504)
+	at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:339)
+	at app.reporove.CoreFlowTest.waitFor(CoreFlowTest.kt:194)
+	at app.reporove.CoreFlowTest.launch(CoreFlowTest.kt:192)
+	at app.reporove.CoreFlowTest.repositoryHeaderScrollsAwayAndTabsRemainAvailable(CoreFlowTest.kt:495)
+....................
+app.reporove.MetadataFeaturesTest:.
+app.reporove.RepositoryPolicyTest:..
+app.reporove.DownloadDeletionTest:....
+app.reporove.UpgradeCleanupTest:.
+
+Time: 225.279
+There was 1 failure:
+1) repositoryHeaderScrollsAwayAndTabsRemainAvailable(app.reporove.CoreFlowTest)
+androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 15000 ms
+	at androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:504)
+	at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:339)
+	at app.reporove.CoreFlowTest.waitFor(CoreFlowTest.kt:194)
+	at app.reporove.CoreFlowTest.launch(CoreFlowTest.kt:192)
+	at app.reporove.CoreFlowTest.repositoryHeaderScrollsAwayAndTabsRemainAvailable(CoreFlowTest.kt:495)
+
+FAILURES!!!
+Tests run: 29,  Failures: 1

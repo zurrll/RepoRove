@@ -35,6 +35,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 /** Real Compose/navigation/storage/network stack, deterministic HTTP fixtures. */
 class CoreFlowTest {
     @get:Rule val compose = createComposeRule()
+    @get:Rule val testName = org.junit.rules.TestName()
     private lateinit var server: MockWebServer
     private lateinit var container: AppContainer
     private var activity: Activity? = null
@@ -46,12 +47,30 @@ class CoreFlowTest {
     @Volatile private var disconnected = false
     @Volatile private var archiveFailure = false
     @Volatile private var privateRepository = false
+    @Volatile private var navigationDocument = false
+    private val longCode = (1..2300).joinToString("\n") { "val line$it = $it" }
     @Volatile private var responsiveDocument = false
     private val requestedPaths = CopyOnWriteArrayList<String>()
     private val repository = """{"id":71,"name":"paper-reader","full_name":"demo/paper-reader","owner":{"id":9,"login":"demo"},"description":"A quiet place to read code and discover useful projects.","language":"Kotlin","stargazers_count":4200,"forks_count":210,"open_issues_count":12,"default_branch":"main","html_url":"https://github.com/demo/paper-reader","pushed_at":"2026-10-05T12:00:00Z","topics":["android","productivity"]}"""
     private val release = """{"id":5,"tag_name":"v1.2.0","name":"Paper Reader 1.2","body":"## Changes\nFaster browsing and a calmer reading experience.","published_at":"2026-10-04T00:00:00Z","html_url":"https://github.com/demo/paper-reader/releases/tag/v1.2.0","zipball_url":"https://api.github.com/repos/demo/paper-reader/zipball/v1.2.0","tarball_url":"https://api.github.com/repos/demo/paper-reader/tarball/v1.2.0","assets":[{"id":500,"name":"reader-arm64.apk","size":1024,"content_type":"application/vnd.android.package-archive","browser_download_url":"https://github.com/demo/paper-reader/releases/download/v1.2.0/reader-arm64.apk"}]}"""
     private val issue = """{"id":8,"number":3,"title":"Improve reading layout","state":"open","user":{"login":"contributor"},"body":"Please keep the page easy to read.","html_url":"https://github.com/demo/paper-reader/issues/3"}"""
     private val readme = "# Paper Reader\n\nRead comfortably on your phone.\n\n## Features\n\n- Fast project discovery\n- Local reading list\n- Release downloads\n\n| Mode | Purpose |\n| --- | --- |\n| Light | Daytime reading |\n| Dark | Evening reading |\n\n[License](LICENSE)"
+
+    private fun content(path: String, text: String) = """{"name":"${path.substringAfterLast('/')}","path":"$path","type":"file","size":${text.toByteArray().size},"encoding":"base64","content":"${Base64.getEncoder().encodeToString(text.toByteArray())}"}"""
+    private fun navigationHtml() = """
+        <h1>Navigation document</h1>
+        <p><a id="bare-link" href="#deep-section">Bare fragment</a>
+        <a id="same-link" href="README.md#deep-section">Same file</a>
+        <a id="guide-link" href="docs/guide.md#deep-section">Guide link</a>
+        <a id="code-link" href="src/Long.kt#L2100">Code link</a></p>
+        ${"<p>Paragraph before the destination.</p>".repeat(65)}
+        <div class="markdown-heading"><h2 id="heading-with-hidden-anchor">Deep Section</h2><a id="user-content-deep-section" class="anchor" href="#deep-section"></a></div>
+        <p>Target content</p>
+        <details><summary>Closed section</summary><h3 id="user-content-中文-说明">中文 说明</h3><p>Nested destination.</p></details>
+        ${"<p>Paragraph after the destination.</p>".repeat(30)}
+    """.trimIndent()
+
+    private fun guideHtml() = "<h1>Linked Guide</h1>" + "<p>Guide reading paragraph.</p>".repeat(80) + "<h2 id='user-content-deep-section'>Deep Section</h2><p>Guide destination.</p>" + "<p>More guide content.</p>".repeat(30)
 
     @Before fun setup() {
         server = MockWebServer()
@@ -65,13 +84,17 @@ class CoreFlowTest {
                     if (archiveFailure) return MockResponse().setResponseCode(500)
                     val bytes = java.io.ByteArrayOutputStream()
                     java.util.zip.ZipOutputStream(bytes).use { zip ->
-                        mapOf("repo-sha/README.md" to readme, "repo-sha/src/Reader.kt" to "package demo\n\nfun read() = \"Hello offline\"\n", "repo-sha/LICENSE" to "Fixture license").forEach { (name, text) -> zip.putNextEntry(java.util.zip.ZipEntry(name)); zip.write(text.toByteArray()); zip.closeEntry() }
+                        mapOf("repo-sha/README.md" to readme, "repo-sha/src/Reader.kt" to "package demo\n\nfun read() = \"Hello offline\"\n", "repo-sha/LICENSE" to "Fixture license", "repo-sha/docs/guide.md" to "# Guide\n\n" + "Paragraph for reading.\n\n".repeat(80) + "## Deep Section\n\nEnd of guide.", "repo-sha/src/Long.kt" to longCode).forEach { (name, text) -> zip.putNextEntry(java.util.zip.ZipEntry(name)); zip.write(text.toByteArray()); zip.closeEntry() }
                     }
                     return MockResponse().setHeader("Content-Type", "application/zip").setBody(okio.Buffer().write(bytes.toByteArray()))
                 }
                 if (path.contains("/commits/")) return MockResponse().setHeader("Content-Type", "application/json").setBody("""{"sha":"${"a".repeat(40)}","commit":{"message":"Snapshot commit"}}""")
                 if (path.startsWith("/search/")) queries += url.queryParameter("q").orEmpty()
                 val body = when {
+                    path == "/markdown" && navigationDocument -> {
+                        markupRequests.incrementAndGet()
+                        return MockResponse().setHeader("Content-Type", "text/html").setBody(if (request.body.clone().readUtf8().contains("# Guide")) guideHtml() else navigationHtml())
+                    }
                     path == "/markdown" && responsiveDocument -> {
                         markupRequests.incrementAndGet()
                         val headings = (1..8).joinToString("") { "<th align=\"${if (it == 2) "right" else "left"}\">Column $it</th>" }
@@ -116,7 +139,12 @@ class CoreFlowTest {
                     path.endsWith("/releases/5") -> release
                     path.endsWith("/releases") -> "[$release]"
                     path.endsWith("/branches") -> """[{"name":"main"},{"name":"feature/reading"}]"""
-                    path.contains("/contents/") -> """[{"name":"README.md","path":"README.md","type":"file","size":200},{"name":"src","path":"src","type":"dir"}]"""
+                    path.endsWith("/contents/docs/guide.md") -> content("docs/guide.md", "# Guide\n\n" + "Reading paragraph\n\n".repeat(80))
+                    path.endsWith("/contents/src/Long.kt") -> content("src/Long.kt", longCode)
+                    path.endsWith("/contents/README.md") -> content("README.md", readme)
+                    path.endsWith("/contents/src") -> """[{"name":"Long.kt","path":"src/Long.kt","type":"file","size":50000}]"""
+                    path.endsWith("/contents/docs") -> """[{"name":"guide.md","path":"docs/guide.md","type":"file","size":200}]"""
+                    path.contains("/contents/") -> """[{"name":"README.md","path":"README.md","type":"file","size":200},{"name":"src","path":"src","type":"dir"},{"name":"docs","path":"docs","type":"dir"}]"""
                     path.endsWith("/issues/3") -> issue
                     path.endsWith("/pulls/3") -> issue
                     path.endsWith("/pulls/3/reviews/99") -> """{"id":99,"state":"CHANGES_REQUESTED","user":{"login":"reviewer"},"body":"Exact review target 99","html_url":"https://github.com/demo/paper-reader/pull/3#pullrequestreview-99"}"""
@@ -143,18 +171,7 @@ class CoreFlowTest {
         }
         server.start()
         val application = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
-        container = AppContainer(application, translationFactory = { secrets, cache ->
-            val client = OkHttpClient.Builder().addInterceptor { chain ->
-                val buffer = okio.Buffer(); chain.request().body!!.writeTo(buffer)
-                val request = AppJson.parseToJsonElement(buffer.readUtf8()).jsonObject
-                val source = request["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonPrimitive.content
-                val parts = AppJson.decodeFromString<List<app.reporove.core.translation.TranslationPart>>(source)
-                val translated = parts.map { it.copy(text = "译文：" + it.text) }
-                val payload = buildJsonObject { putJsonArray("choices") { add(buildJsonObject { put("finish_reason", "stop"); putJsonObject("message") { put("content", AppJson.encodeToString(translated)) } }) } }
-                okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("fixture").body(payload.toString().toResponseBody("application/json".toMediaType())).build()
-            }.build()
-            app.reporove.core.translation.TranslationService(secrets, cache, client)
-        }) { token ->
+        container = AppContainer(application) { token ->
             val client = OkHttpClient.Builder().addNetworkInterceptor(GitHubHeaders(token, "localhost")).build()
             createApi(token, server.url("/").toString(), client)
         }
@@ -168,15 +185,17 @@ class CoreFlowTest {
         }
     }
     @After fun teardown() {
-        runBlocking { container.translation.resetConfiguration() }
         runBlocking { container.offline.snapshots.value.filter { it.repository.fullName == "demo/paper-reader" }.forEach { container.offline.delete(it.id) } }
+        compose.waitForIdle()
         runBlocking { container.repository.logout(); container.local.updatePreferences { Preferences(clipboardLinks = false) } }
+        // Let preference-driven recomposition finish before the rule destroys the Activity.
+        compose.waitForIdle()
         server.shutdown()
     }
     private fun launch() { compose.setContent { activity = LocalActivity.current; RepoRoveApp(container, activity?.window) }; waitFor("paper-reader") }
     private fun waitFor(text: String) {
-        try { compose.waitUntil(15000) { compose.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty() } }
-        catch (error: Throwable) { screenshot("failure"); throw error }
+        try { compose.waitUntil(15000) { runCatching { compose.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false) } }
+        catch (error: Throwable) { screenshot("failure-${testName.methodName}"); throw error }
     }
     private fun screenshot(name: String) {
         compose.mainClock.advanceTimeBy(1000)
@@ -269,39 +288,166 @@ class CoreFlowTest {
         launch(); compose.onNodeWithContentDescription("我的").performClick(); waitFor("访问令牌")
         compose.onNodeWithContentDescription("设置").performClick(); waitFor("关于")
         compose.onNodeWithText("关于", substring = false).performClick(); waitFor("版本更新记录")
-        compose.onNodeWithText("版本更新记录").performClick(); waitFor("0.5.0 · 当前")
-        compose.onNodeWithText("关于页新增各版更新记录", substring = true).assertExists()
+        compose.onNodeWithText("版本更新记录").performClick(); waitFor("0.6.0 · 当前")
+        compose.onNodeWithText("修复 README 章节定位", substring = true).assertExists()
         screenshot("version-history")
+        compose.onNodeWithContentDescription("返回").performClick(); waitFor("开源许可与致谢")
+        compose.onNodeWithText("开源许可与致谢").performClick()
+        compose.waitUntil(15000) { js("document.body.innerText").contains("Robin Stocker") }
     }
 
-    @Test fun fullAndSelectedTranslationPreserveOriginalAndNativeSelectionMenu() {
-        runBlocking { container.translation.configure(app.reporove.core.translation.TranslationConfig("https://translation.example/v1/chat/completions", "fixture-model", "fixture-key")) }
+    @Test fun documentAnchorsAndCrossFileBackKeepTheSourcePosition() {
+        navigationDocument = true
         launch(); compose.onNodeWithText("paper-reader").performClick(); waitFor("阅读全文")
-        compose.onAllNodesWithText("阅读全文").onFirst().performClick(); waitForDocument()
-        val original = js("document.body.innerText")
-        compose.onNodeWithContentDescription("AI 全文 / 原文").performClick(); waitFor("翻译全文")
-        compose.onNodeWithText("翻译", substring = false).performClick()
-        compose.waitUntil(15000) { js("document.body.innerText").contains("译文：") }
-        assertEquals("\"val x = 1\"", js("document.querySelector('pre').innerText"))
-        assertTrue(js("document.querySelector('a').href").contains("github.com/demo"))
-        screenshot("full-translation")
-        compose.onNodeWithContentDescription("AI 全文 / 原文").performClick()
-        compose.waitUntil(10000) { js("document.body.innerText") == original }
-        js("(()=>{const node=document.querySelector('h1').firstChild;const range=document.createRange();range.selectNodeContents(node);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);return selection.toString()})()")
-        var actionMode: android.view.ActionMode? = null
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            actionMode = findWeb(activity!!.window.decorView)!!.startActionMode(object : android.view.ActionMode.Callback {
-                override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = true
-                override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
-                override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem) = false
-                override fun onDestroyActionMode(mode: android.view.ActionMode) = Unit
-            }, android.view.ActionMode.TYPE_FLOATING)
-            assertNotNull(actionMode)
-            assertTrue(actionMode!!.menu.performIdentifierAction(0x525654, 0))
+        compose.onAllNodesWithText("阅读全文").onFirst().performClick()
+        compose.waitUntil(15000) { js("!!document.querySelector('#bare-link')") == "true" }
+        for (link in listOf("bare-link", "same-link")) {
+            js("window.scrollTo(0,0);document.getElementById('$link').click();true")
+            compose.waitUntil(10000) { js("Math.abs(document.querySelector('.markdown-heading').getBoundingClientRect().top) < 30 && window.scrollY > 500") == "true" }
+            compose.onNodeWithContentDescription("刷新 README").assertExists()
         }
-        waitFor("翻译选中文字"); compose.onNodeWithText("Paper Reader", substring = false).assertExists()
-        compose.onNodeWithText("翻译", substring = false).performClick(); waitFor("译文：Paper Reader")
-        screenshot("selected-translation")
+        js("window.scrollTo(0,400);true")
+        val position = js("window.scrollY").toInt()
+        js("document.getElementById('guide-link').click();true")
+        waitFor("docs/guide.md")
+        compose.waitUntil(15000) { js("document.querySelector('h1')?.innerText === 'Linked Guide' && window.scrollY > 500") == "true" }
+        compose.waitForIdle(); android.os.SystemClock.sleep(500)
+        InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+        waitFor("README")
+        compose.onNodeWithContentDescription("刷新 README").assertExists()
+        compose.waitUntil(10000) { js("window.scrollY").toIntOrNull()?.let { kotlin.math.abs(it - position) < 20 } == true }
+        js("document.getElementById('code-link').click();true")
+        waitFor("src/Long.kt"); waitFor("2001–2300 行")
+        compose.waitUntil(5000) {
+            var positioned = false
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                var view: View? = findCodeView(activity!!.window.decorView)
+                while (view != null && view !is androidx.core.widget.NestedScrollView) view = view.parent as? View
+                positioned = (view as? androidx.core.widget.NestedScrollView)?.scrollY?.let { it > 50 } == true
+            }; positioned
+        }
+        compose.onNodeWithContentDescription("文件操作").performClick(); waitFor("复制整个文件")
+        compose.onNodeWithText("复制整个文件").performClick()
+        compose.waitUntil(5000) {
+            var copied = false
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                val clipboard = activity!!.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                copied = clipboard.primaryClip?.getItemAt(0)?.text?.toString() == longCode
+            }; copied
+        }
+        compose.mainClock.advanceTimeBy(1000); compose.waitForIdle()
+        android.os.SystemClock.sleep(300)
+        compose.waitForIdle(); android.os.SystemClock.sleep(500)
+        InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+        waitFor("README")
+        compose.waitUntil(10000) { js("window.scrollY").toIntOrNull()?.let { kotlin.math.abs(it - position) < 20 } == true }
+        // A numeric line link belongs to its original file; it must not force later
+        // Markdown files opened in the same browser into source mode.
+        js("document.getElementById('code-link').click();true")
+        waitFor("src/Long.kt")
+        repeat(2) { compose.onNodeWithContentDescription("文件操作").performClick(); compose.onNodeWithText("上一级", substring = false).performClick(); compose.waitForIdle() }
+        waitFor("docs"); compose.onNodeWithText("docs", substring = false).performClick()
+        waitFor("guide.md"); compose.onNodeWithText("guide.md", substring = false).performClick()
+        compose.waitUntil(15000) { js("document.querySelector('h1')?.innerText === 'Linked Guide'") == "true" }
+    }
+
+    @Test fun nonReadmeMarkdownScrollsAfterSwitchingModeInsideRepository() {
+        navigationDocument = true
+        launch(); compose.onNodeWithText("paper-reader").performClick(); waitFor("阅读全文")
+        compose.onNodeWithText("代码", substring = false).performClick(); waitFor("根目录")
+        waitFor("docs")
+        compose.onNodeWithText("docs", substring = false).performClick(); waitFor("guide.md")
+        compose.onNodeWithText("guide.md", substring = false).performClick()
+        compose.waitUntil(15000) { js("document.querySelector('h1')?.innerText === 'Linked Guide'") == "true" }
+        compose.onNodeWithContentDescription("文件操作").performClick(); compose.onNodeWithText("查看源码").performClick()
+        compose.onNodeWithContentDescription("文件操作").performClick(); compose.onNodeWithText("阅读模式").performClick()
+        compose.waitUntil(15000) { js("document.querySelector('h1')?.innerText === 'Linked Guide'") == "true" }
+        val x = js("window.innerWidth/2").toFloat(); val height = js("window.innerHeight").toFloat()
+        swipeWeb(x, height * .82f, x, height * .2f)
+        try { compose.waitUntil(8000) { js("window.scrollY > 50") == "true" } }
+        catch (error: Throwable) { screenshot("failure-md-scroll"); throw AssertionError(js("JSON.stringify({h:innerHeight,y:scrollY,body:document.body.getBoundingClientRect().height,title:document.querySelector('h1')?.innerText})"), error) }
+        screenshot("ordinary-markdown-scroll")
+        InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+        waitFor("guide.md")
+    }
+
+    @Test fun nativeLongCodeCanSwipeAndFindMarksTheMatchingText() {
+        launch(); compose.onNodeWithText("paper-reader").performClick(); waitFor("阅读全文")
+        compose.onNodeWithText("代码", substring = false).performClick(); waitFor("src")
+        compose.onNodeWithText("src", substring = false).performClick(); waitFor("Long.kt")
+        compose.onNodeWithText("Long.kt", substring = false).performClick(); waitFor("1–1000 行")
+        compose.waitForIdle()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        var before = 0; val location = IntArray(2); var width = 0; var height = 0
+        instrumentation.runOnMainSync {
+            var view: View? = findCodeView(activity!!.window.decorView)
+            while (view != null && view !is androidx.core.widget.NestedScrollView) view = view.parent as? View
+            val scroller = view as androidx.core.widget.NestedScrollView
+            before = scroller.scrollY; scroller.getLocationOnScreen(location); width = scroller.width; height = scroller.height
+        }
+        repeat(3) {
+            compose.waitForIdle()
+            instrumentation.runOnMainSync {
+                var view: View? = findCodeView(activity!!.window.decorView)
+                while (view != null && view !is androidx.core.widget.NestedScrollView) view = view.parent as? View
+                val scroller = view as androidx.core.widget.NestedScrollView
+                scroller.getLocationOnScreen(location); width = scroller.width; height = scroller.height
+            }
+            val down = android.os.SystemClock.uptimeMillis()
+            for (step in 0..20) {
+                val event = android.view.MotionEvent.obtain(down, android.os.SystemClock.uptimeMillis(), when (step) { 0 -> 0; 20 -> 1; else -> 2 }, location[0] + width / 2f, location[1] + height * (.8f - .6f * step / 20), 0)
+                event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+                try { check(instrumentation.uiAutomation.injectInputEvent(event, true)) } finally { event.recycle() }
+                android.os.SystemClock.sleep(20)
+            }
+        }
+        try { compose.waitUntil(8000) {
+            var moved = false
+            instrumentation.runOnMainSync {
+                var view: View? = findCodeView(activity!!.window.decorView)
+                while (view != null && view !is androidx.core.widget.NestedScrollView) view = view.parent as? View
+                moved = (view as androidx.core.widget.NestedScrollView).scrollY > before + 50
+            }; moved
+        } }
+        catch (error: Throwable) {
+            var diagnostic = ""
+            instrumentation.runOnMainSync {
+                val code = findCodeView(activity!!.window.decorView)!!
+                var view: View? = code
+                while (view != null && view !is androidx.core.widget.NestedScrollView) view = view.parent as? View
+                val scroller = view as androidx.core.widget.NestedScrollView
+                diagnostic = "code=${code.width}x${code.height} lines=${code.layout?.lineCount} selection=${code.selectionStart}-${code.selectionEnd} textScrollY=${code.scrollY} scroll=${scroller.scrollY}, scroller=${scroller.width}x${scroller.height}, child=${scroller.getChildAt(0).height}, location=${location.toList()}"
+            }
+            screenshot("failure-native-code-scroll"); throw AssertionError(diagnostic, error)
+        }
+        compose.onNodeWithContentDescription("文件操作").performClick(); compose.onNodeWithText("文件内查找 / 跳行").performClick()
+        compose.onNodeWithText("查找全文").performTextInput("line2100")
+        compose.onNodeWithText("查找", substring = false).performClick(); waitFor("2001–2300 行")
+        compose.waitUntil(5000) {
+            var highlighted = false
+            instrumentation.runOnMainSync {
+                val text = findCodeView(activity!!.window.decorView)?.text as? android.text.Spanned
+                highlighted = text?.getSpans(0, text.length, android.text.style.BackgroundColorSpan::class.java)?.isNotEmpty() == true
+            }; highlighted
+        }
+    }
+
+    @Test fun offlineLinksKeepAnchorsAndReturnToLocalReadme() {
+        navigationDocument = true
+        runBlocking { container.offline.save(app.reporove.core.offline.SaveRequest("demo/paper-reader", "main", true, true)) }
+        launch(); disconnected = true
+        compose.onNodeWithText("项目库", substring = false).performClick()
+        waitFor("离线与最近阅读"); compose.onNodeWithText("离线与最近阅读").performClick(); waitFor("阅读")
+        compose.onNodeWithText("阅读", substring = false).performClick()
+        compose.waitUntil(15000) { js("!!document.querySelector('#guide-link')") == "true" }
+        js("(()=>{const a=document.createElement('a');a.href='https://github.com/demo/paper-reader/blob/main/README.md#deep-section';document.body.append(a);a.click();return true})()")
+        compose.waitUntil(10000) { js("window.scrollY > 500") == "true" }
+        compose.onNodeWithContentDescription("已保存的仓库信息").assertExists()
+        js("window.scrollTo(0,400);document.getElementById('guide-link').click();true")
+        waitFor("docs/guide.md")
+        compose.waitUntil(15000) { js("document.querySelector('h1')?.innerText === 'Guide' && !!document.getElementById('user-content-deep-section') && window.scrollY > 500") == "true" }
+        InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+        compose.waitUntil(10000) { js("!!document.querySelector('#guide-link') && window.scrollY > 300") == "true" }
     }
 
     @Test fun offlineSnapshotReadsFilesWithoutNetworkAndDeletesDiskFiles() {
@@ -480,8 +626,10 @@ class CoreFlowTest {
         compose.onNodeWithText("清空").performClick()
         compose.onNodeWithText("输入或搜索兴趣主题").performTextInput("rust")
         compose.onNodeWithText("添加主题 rust", substring = false).assertExists()
+        // Let the IME's bring-into-view animation settle before scrolling the lazy list.
+        compose.waitForIdle(); android.os.SystemClock.sleep(1000)
         compose.onNodeWithTag("interests-list").performScrollToNode(hasContentDescription("兴趣rust"))
-        compose.onNodeWithContentDescription("兴趣rust").performClick()
+        compose.onNodeWithContentDescription("兴趣rust").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.onNodeWithText("保存兴趣").performClick()
         compose.waitUntil(10000) { runBlocking { container.local.preferences.first().interests == listOf("rust") } }
         compose.onNodeWithText("android", substring = false).assertDoesNotExist()

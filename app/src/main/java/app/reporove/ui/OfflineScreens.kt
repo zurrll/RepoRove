@@ -81,28 +81,26 @@ import java.util.Date
     deleting?.let { snapshot -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text("删除离线快照？") }, text = { Text("${snapshot.repository.fullName} 的本机资料与源码将删除，GitHub 仓库不受影响。") }, confirmButton = { TextButton(onClick = { app.action("delete-offline:${snapshot.id}", "本机快照已删除") { app.container.offline.delete(snapshot.id); deleting = null } }) { Text("删除") } }, dismissButton = { TextButton(onClick = { deleting = null }) { Text("取消") } }) }
 }
 
-@Composable fun OfflineRepositoryScreen(app: AppModel, prefs: Preferences, nav: AppNavigation, id: String, initialPath: String? = null) {
+@Composable fun OfflineRepositoryScreen(app: AppModel, prefs: Preferences, nav: AppNavigation, id: String, initialPath: String? = null, anchor: String = "") {
     val snapshots by app.container.offline.snapshots.collectAsStateWithLifecycle()
     val snapshot = snapshots.firstOrNull { it.id == id } ?: run { EmptyState("离线快照不存在", "快照可能已被删除、更新，或所属账号已退出。"); return }
     var section by rememberSaveable(id) { mutableStateOf(if (initialPath != null || !snapshot.documents) "源码" else "资料") }
-    var translate by remember { mutableIntStateOf(0) }
     var information by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         if (initialPath == null && section == "资料") Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(snapshot.repository.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
             IconButton(onClick = { information = true }) { Icon(Icons.Outlined.Info, "已保存的仓库信息") }
             SourceBadge(true, snapshot.savedAt, "离线")
-            if (section == "资料" && snapshot.readme != null) IconButton(onClick = { translate++ }) { Icon(Icons.Outlined.Translate, "AI 全文 / 原文") }
         }
         if (initialPath == null && snapshot.documents && snapshot.code) ChoiceRow(listOf("资料", "源码"), section, { it }, { section = it })
-        if (section == "源码" && snapshot.code) CodeBrowser(app, prefs, nav, snapshot.repository.fullName, snapshot.sha, initialPath.orEmpty(), snapshot = snapshot)
+        if (section == "源码" && snapshot.code) CodeBrowser(app, prefs, nav, snapshot.repository.fullName, snapshot.sha, initialPath.orEmpty(), anchor = anchor, snapshot = snapshot)
         else if (snapshot.documents) {
             Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("★ ${snapshot.repository.stars.toString()}", color = LocalSemanticColors.current.warning, style = MaterialTheme.typography.labelMedium)
                 Text(snapshot.repository.language ?: "", color = LocalSemanticColors.current.link, style = MaterialTheme.typography.labelMedium)
                 Text(snapshot.sha.take(7), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
             }
-            if (snapshot.readme != null) MarkdownBody(snapshot.readme, prefs, Modifier.weight(1f), snapshot.repository.fullName, snapshot.sha, snapshot.readmePath ?: "README.md", fill = true, renderedHtml = snapshot.readmeHtml, offlineId = snapshot.id, translationRequest = translate, privateHint = snapshot.repository.isPrivate)
+            if (snapshot.readme != null) MarkdownBody(snapshot.readme, prefs, Modifier.weight(1f), snapshot.repository.fullName, snapshot.sha, snapshot.readmePath ?: "README.md", fill = true, renderedHtml = snapshot.readmeHtml, offlineId = snapshot.id, privateHint = snapshot.repository.isPrivate)
             else EmptyState("没有 README", snapshot.repository.description)
         }
     }

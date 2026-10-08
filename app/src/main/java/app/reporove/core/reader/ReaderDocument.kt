@@ -17,6 +17,15 @@ object MarkdownLinks {
         val origin = if (image) "https://raw.githubusercontent.com/$fullName/${GitHubRepository.encodePath(ref)}/" else "https://github.com/$fullName/blob/${GitHubRepository.encodePath(ref)}/"
         return runCatching { if (destination.startsWith('/')) URI(origin).resolve(destination.removePrefix("/")).toString() else URI(origin + GitHubRepository.encodePath(path)).resolve(destination).toString() }.getOrDefault(destination)
     }
+    /** Includes bare fragments and GitHub links resolving to the currently displayed file. */
+    fun sameDocumentAnchor(url: String, fullName: String?, ref: String, path: String): String? {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return null
+        if (uri.rawFragment == null) return null
+        if (uri.host == "reader.reporove.invalid" && uri.path.orEmpty() in listOf("", "/", "/anchor/")) return uri.fragment
+        if (fullName == null) return null
+        val target = app.reporove.core.model.GitHubLinks.parse(url) as? app.reporove.core.model.GitHubTarget.File ?: return null
+        return target.fragment?.takeIf { target.fullName.equals(fullName, true) && target.refAndPath == "$ref/$path" }
+    }
     fun images(markdown: String, fullName: String, ref: String, path: String): String = Regex("(!\\[[^\\]]*]\\()([^\\s)]+)").replace(markdown) { it.groupValues[1] + resolve(it.groupValues[2], fullName, ref, path, true) }
 }
 
@@ -51,6 +60,14 @@ object ReaderDocument {
                 if (attr == "srcset") node.attr(attr, node.attr(attr).split(',').joinToString(",") { item -> val parts = item.trim().split(Regex("\\s+"), limit = 2); MarkdownLinks.resolve(parts.first(), fullName, ref, path, true) + if (parts.size == 2) " ${parts[1]}" else "" })
                 else node.attr(attr, MarkdownLinks.resolve(node.attr(attr), fullName, ref, path, attr == "src"))
             }
+        }
+        // WebView handles same-page hashes without shouldOverrideUrlLoading. Route fragment
+        // clicks through a distinct app-owned path, so hidden GitHub anchors use one locator.
+        raw.select("a[href]").forEach { link ->
+            val destination = link.attr("href")
+            val fragment = if (destination.startsWith("#")) runCatching { URI(destination).fragment }.getOrNull()
+                else MarkdownLinks.sameDocumentAnchor(destination, fullName, ref, path)
+            if (fragment != null) link.attr("href", URI("https", "reader.reporove.invalid", "/anchor/", null, fragment).toASCIIString())
         }
         val clean = Jsoup.parseBodyFragment(Jsoup.clean(raw.body().html(), "", safe, org.jsoup.nodes.Document.OutputSettings().prettyPrint(false)))
         // srcset has its own URL grammar; retain only HTTPS image candidates after cleaning.

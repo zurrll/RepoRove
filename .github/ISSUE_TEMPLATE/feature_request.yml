@@ -1,0 +1,15 @@
+name: 功能与体验建议
+description: 说说你的真实使用场景
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: 你想完成什么任务
+      description: 描述使用场景和目前遇到的不便。
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你的想法

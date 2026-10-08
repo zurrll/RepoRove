@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.reporove.NetworkTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-08T05:10:39.590Z" hostname="MacBookdeMacBook-Air.local" time="0.181">
+  <properties/>
+  <testcase name="contentMediaTypeIsPreserved" classname="app.reporove.NetworkTest" time="0.171"/>
+  <testcase name="tokenIsNeverForwardedToForeignRedirectHost" classname="app.reporove.NetworkTest" time="0.009"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

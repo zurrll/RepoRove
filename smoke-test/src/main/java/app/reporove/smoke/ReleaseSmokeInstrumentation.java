@@ -26,6 +26,7 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             waitFor("text", "打开剪贴板中的 GitHub 链接？"); capture("release-clipboard-prompt");
             click(waitFor("button", "暂不"));
+            capture("release-discover");
             click(waitFor("desc", "搜索"));
             capture("release-search-start");
             AccessibilityNodeInfo input = waitFor("class", "android.widget.EditText");
@@ -95,7 +96,7 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             waitFor("text", "尚未保存离线仓库");
             getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             click(waitFor("desc", "我的")); click(waitFor("desc", "设置")); click(waitFor("button", "关于"));
-            click(waitFor("button", "版本更新记录")); waitFor("text", "0.5.0 · 当前"); capture("release-version-history");
+            click(waitFor("button", "版本更新记录")); waitFor("text", "0.6.0 · 当前"); capture("release-version-history");
             shell("svc wifi enable");
             shell("svc data enable");
             result.putString("result", "PASS: R8 APK prompts for clipboard links, saves a real GitHub snapshot with production foreground service, opens README and code with no active network, opens the file tree, deletes the snapshot, shows version history, and passes existing search/header/release/profile flows");

@@ -1,6 +1,7 @@
 name: Android checks
 on:
   push:
+    branches: ["**"]
   pull_request:
 permissions:
   contents: read

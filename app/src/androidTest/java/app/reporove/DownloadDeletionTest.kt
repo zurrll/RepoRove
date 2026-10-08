@@ -63,7 +63,7 @@ class DownloadDeletionTest {
     }
 
     @Test fun cancellingActiveDownloadRemovesPartialFileAndHistory() = runBlocking {
-        MockWebServer().use { server ->
+        repeat(3) { attempt -> MockWebServer().use { server ->
             server.enqueue(MockResponse().setBody("x".repeat(100000)).throttleBody(1024, 1, TimeUnit.SECONDS))
             server.start()
             val name = "reporove-cancel-${System.nanoTime()}.txt"
@@ -71,13 +71,19 @@ class DownloadDeletionTest {
             val id = manager.enqueue(DownloadManager.Request(Uri.parse(server.url("/slow").toString())).setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "RepoRove/$name"))
             store.addDownload(DownloadRecord(id, name, "test/fixture", 0, name))
             try {
-                withTimeout(15000) { while (downloads.progress(id)?.status != DownloadManager.STATUS_RUNNING) delay(100) }
+                withTimeout(15000) {
+                    while (true) {
+                        val progress = downloads.progress(id)
+                        if (progress?.status == DownloadManager.STATUS_RUNNING && (attempt == 0 || File(directory, name).length() > 0)) break
+                        delay(100)
+                    }
+                }
                 downloads.remove(id)
                 delay(500)
                 assertNull(downloads.progress(id))
                 assertFalse(File(directory, name).exists())
                 assertTrue(store.downloads.first().none { it.id == id })
             } finally { manager.remove(id); File(directory, name).delete(); store.removeDownload(id) }
-        }
+        } }
     }
 }

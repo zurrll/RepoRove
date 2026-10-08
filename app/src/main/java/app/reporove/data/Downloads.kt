@@ -90,13 +90,23 @@ class Downloads(private val context: Context, private val store: LocalStore) {
         val removed = manager.remove(id)
         require(before == null || removed > 0) { "系统未能取消或移除下载，记录已保留，请重试。" }
         require(progress(id) == null) { "系统下载仍在运行，记录已保留，请重试。" }
-        // Some providers drop the download row even if disk deletion fails. Use the owned MediaStore entry,
-        // then the exact recorded path as a fallback. Never infer absence from File.exists() on scoped storage.
-        if (filePresent(file)) {
-            media?.let { context.contentResolver.delete(it, null, null) }
-            if (filePresent(file)) file.delete()
+        // A cancelled worker can create its file/MediaStore entry after the system row disappears.
+        // Refresh ownership during cleanup, and require stable absence for an active task.
+        // Never infer absence from File.exists() on scoped storage.
+        val wasActive = before?.status in listOf(DownloadManager.STATUS_PENDING, DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PAUSED)
+        var absentSince: Long? = null
+        repeat(30) {
+            if (filePresent(file)) {
+                (ownedMedia(file.name) ?: media)?.let { context.contentResolver.delete(it, null, null) }
+                if (filePresent(file)) file.delete()
+            }
+            if (!filePresent(file)) {
+                val now = android.os.SystemClock.elapsedRealtime()
+                absentSince = absentSince ?: now
+                if (!wasActive || now - absentSince!! >= 1000) { store.removeDownload(id); return@withContext }
+            } else absentSince = null
+            delay(100)
         }
-        repeat(10) { if (!filePresent(file)) { store.removeDownload(id); return@withContext }; delay(100) }
         throw IllegalArgumentException("文件仍在 Downloads/RepoRove 中，删除未完成，记录已保留。请重试或在文件管理器中删除。")
     }
 

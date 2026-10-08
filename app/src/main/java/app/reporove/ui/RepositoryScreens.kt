@@ -166,16 +166,14 @@ import app.reporove.data.GitHubRepository
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(fullName) { model.configure(fullName) { refresh -> val content = app.container.repository.readme(fullName, refresh); val repo = app.container.repository.repository(fullName).data; Loaded(content.data to repo, content.cachedAt, content.offline) } }
     Column(Modifier.fillMaxSize()) {
-        var translate by remember { mutableIntStateOf(0) }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(fullName, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
             SourceBadge((state as? LoadState.Ready)?.offline == true, (state as? LoadState.Ready)?.cachedAt ?: 0, refresh = model::refresh)
-            IconButton(onClick = { translate++ }) { Icon(Icons.Outlined.Translate, "AI 全文 / 原文") }
             IconButton(onClick = { model.refresh() }) { Icon(Icons.Outlined.Refresh, "刷新 README") }
         }
         Resource(state, model::refresh, showCacheNote = false) { (content, repo) ->
             val text = remember(content) { runCatching { GitHubRepository.text(content) } }
-            text.getOrNull()?.let { MarkdownBody(it, prefs, Modifier.fillMaxSize(), fullName, repo.defaultBranch, content.path, fill = true, translationRequest = translate, privateHint = repo.isPrivate) } ?: EmptyState("无法直接预览", text.exceptionOrNull()?.message)
+            text.getOrNull()?.let { MarkdownBody(it, prefs, Modifier.fillMaxSize(), fullName, repo.defaultBranch, content.path, fill = true, privateHint = repo.isPrivate) } ?: EmptyState("无法直接预览", text.exceptionOrNull()?.message)
         }
     }
 }

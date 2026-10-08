@@ -1,0 +1,29 @@
+name: 体验问题
+description: 告诉我们哪里没有按预期工作
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: App 版本、手机与系统
+      placeholder: 例如 0.6.0 / 一加 Ace 5 / ColorOS 16
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 操作步骤
+      description: 如果涉及公开项目，请附链接。不要包含令牌或私有信息。
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: 预期与实际表现
+    validations:
+      required: true
+  - type: textarea
+    id: media
+    attributes:
+      label: 截图或补充
+      description: 截图请遮盖私人信息。
