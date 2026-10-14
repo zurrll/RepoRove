@@ -19,10 +19,21 @@ import java.io.FileOutputStream;
 public final class ReleaseSmokeInstrumentation extends Instrumentation {
     private int networkRetries;
     private boolean oauthProbe;
-    @Override public void onCreate(Bundle arguments) { super.onCreate(arguments); oauthProbe = arguments != null && "true".equals(arguments.getString("oauth_probe")); start(); }
+    private boolean downloadProbe;
+    @Override public void onCreate(Bundle arguments) {
+        super.onCreate(arguments);
+        oauthProbe = arguments != null && "true".equals(arguments.getString("oauth_probe"));
+        downloadProbe = arguments != null && "true".equals(arguments.getString("download_probe"));
+        start();
+    }
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
+            if (downloadProbe) {
+                verifyDownloadedApkOpensAndDeletes();
+                result.putString("result", "PASS: actual R8 APK downloads the public RepoRove APK, reads its system content URI, opens the system installer without installing, and deletes both the file and download record");
+                finish(Activity.RESULT_OK, result); return;
+            }
             if (oauthProbe) {
                 getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 AccessibilityNodeInfo dismiss = find(getUiAutomation().getRootInActiveWindow(), "button", "暂不");
@@ -130,6 +141,73 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
         } catch (Throwable error) {
             shell("svc wifi enable"); shell("svc data enable"); capture("release-failure"); result.putString("result", "FAIL"); result.putString("error", Log.getStackTraceString(error)); finish(Activity.RESULT_CANCELED, result);
         }
+    }
+    private void verifyDownloadedApkOpensAndDeletes() throws Exception {
+        runOnMainSync(() -> ((android.content.ClipboardManager) getTargetContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE))
+            .setPrimaryClip(android.content.ClipData.newPlainText("GitHub link", "https://github.com/termux/termux-app")));
+        getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        click(waitFor("button", "暂不"));
+        click(waitFor("desc", "搜索"));
+        AccessibilityNodeInfo input = waitFor("class", "android.widget.EditText");
+        Bundle query = new Bundle(); query.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "repo:zurrll/RepoRove");
+        if (!input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, query)) throw new AssertionError("Download probe search text was not accepted");
+        waitFor("text", "repo:zurrll/RepoRove");
+        getUiAutomation().waitForIdle(300, 5000);
+        click(waitFor("button", "搜索"));
+        click(waitFor("repo", "RepoRove"));
+        click(waitFor("button", "发布"));
+        click(waitForWithScroll("text", "v0.6.0"));
+        waitForNetwork("text", "版本说明");
+        click(waitFor("button", "跳到下载"));
+        click(waitForWithScroll("desc", "下载 RepoRove-0.6.0-preview.apk"));
+        waitFor("text", "已加入下载，可在项目库查看进度");
+        getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+        getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+        click(waitFor("button", "项目库"));
+        click(waitFor("button", "下载"));
+        android.app.DownloadManager manager = getTargetContext().getSystemService(android.app.DownloadManager.class);
+        long deadline = SystemClock.elapsedRealtime() + 90000, downloadId = -1;
+        String localUri = null;
+        do {
+            try (android.database.Cursor cursor = manager.query(new android.app.DownloadManager.Query())) {
+                while (cursor.moveToNext()) {
+                    if (!"RepoRove-0.6.0-preview.apk".equals(cursor.getString(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TITLE)))) continue;
+                    int status = cursor.getInt(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS));
+                    if (status == android.app.DownloadManager.STATUS_FAILED) throw new AssertionError("Actual APK DownloadManager failure: " + cursor.getInt(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_REASON)));
+                    if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+                        downloadId = cursor.getLong(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_ID));
+                        localUri = cursor.getString(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_LOCAL_URI));
+                        break;
+                    }
+                }
+            }
+            if (downloadId < 0) SystemClock.sleep(500);
+        } while (downloadId < 0 && SystemClock.elapsedRealtime() < deadline);
+        if (downloadId < 0) throw new AssertionError("Actual APK download did not complete");
+        android.net.Uri contentUri = manager.getUriForDownloadedFile(downloadId);
+        try (java.io.InputStream bytes = getTargetContext().getContentResolver().openInputStream(contentUri)) {
+            if (bytes == null || bytes.read() != 0x50 || bytes.read() != 0x4b) throw new AssertionError("Downloaded APK content URI was not readable");
+        }
+        File downloaded = new File(android.net.Uri.parse(localUri).getPath());
+        if (!downloaded.isFile()) throw new AssertionError("Downloaded APK file was missing");
+        click(waitFor("button", "打开文件"));
+        long installerDeadline = SystemClock.elapsedRealtime() + 10000;
+        boolean installer = false;
+        do {
+            AccessibilityNodeInfo root = getUiAutomation().getRootInActiveWindow();
+            String packageName = root == null ? "" : String.valueOf(root.getPackageName());
+            installer = packageName.contains("packageinstaller");
+            if (!installer) SystemClock.sleep(300);
+        } while (!installer && SystemClock.elapsedRealtime() < installerDeadline);
+        if (!installer) throw new AssertionError("Downloaded APK did not open the system installer");
+        capture("release-downloaded-apk-installer");
+        getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+        waitFor("button", "打开文件");
+        click(waitFor("button", "删除文件"));
+        waitFor("text", "删除文件？");
+        click(waitFor("button", "删除文件"));
+        waitFor("text", "暂无下载");
+        if (downloaded.exists() || manager.getUriForDownloadedFile(downloadId) != null) throw new AssertionError("Actual APK deletion left its file or system record behind");
     }
     private void shell(String command) {
         try (android.os.ParcelFileDescriptor result = getUiAutomation().executeShellCommand(command); java.io.FileInputStream input = new java.io.FileInputStream(result.getFileDescriptor())) { while (input.read() >= 0) {} }
