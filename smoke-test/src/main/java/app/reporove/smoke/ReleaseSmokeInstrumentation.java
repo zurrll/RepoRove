@@ -173,7 +173,8 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
         waitForNetwork("text", "GitHub Trending · 月榜");
         click(waitFor("button", "全部语言"));
         AccessibilityNodeInfo input = waitFor("class", "android.widget.EditText");
-        Bundle query = new Bundle(); query.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "Python");
+        // Use a partial query so an exact button lookup cannot match the editable field itself.
+        Bundle query = new Bundle(); query.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "pytho");
         if (!input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, query)) throw new AssertionError("Language query was not accepted");
         click(waitFor("button", "Python"));
         waitFor("button", "Python");
