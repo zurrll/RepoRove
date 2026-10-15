@@ -288,7 +288,7 @@ class CoreFlowTest {
         launch(); compose.onNodeWithContentDescription("我的").performClick(); waitFor("访问令牌")
         compose.onNodeWithContentDescription("设置").performClick(); waitFor("关于")
         compose.onNodeWithText("关于", substring = false).performClick(); waitFor("版本更新记录")
-        compose.onNodeWithText("版本更新记录").performClick(); waitFor("0.6.1 · 当前")
+        compose.onNodeWithText("版本更新记录").performClick(); waitFor("0.6.2 · 当前")
         compose.onNodeWithText("新增 GitHub 浏览器设备授权登录", substring = true).assertExists()
         compose.onNodeWithText("0.6.0", substring = false).performScrollTo().performClick()
         compose.onNodeWithText("修复 README 章节定位", substring = true).assertExists()

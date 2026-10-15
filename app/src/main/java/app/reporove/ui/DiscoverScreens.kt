@@ -52,7 +52,8 @@ import kotlinx.serialization.json.*
         }
     }
     Column {
-        ChoiceRow(listOf("为你", "探索", "热门"), mode, { it }, { mode = it; topic = "全部" })
+        ActionRow("热榜", "日榜、周榜、月榜 · 查看完整榜单") { nav.root(MainTab.Trending) }
+        ChoiceRow(listOf("为你", "探索", "热门"), mode, { if (it == "热门") "仓库排行" else it }, { mode = it; topic = "全部" })
         if (mode == "探索") ExploreBrowser(app, nav)
         else LazyColumn(Modifier.fillMaxSize()) {
             if (mode == "为你") {

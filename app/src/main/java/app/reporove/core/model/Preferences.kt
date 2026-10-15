@@ -3,7 +3,7 @@ package app.reporove.core.model
 import kotlinx.serialization.Serializable
 
 enum class MainTab(val label: String) {
-    Discover("发现"), Feed("动态"), Inbox("收件箱"), Library("项目库"), Search("搜索"), Profile("我的")
+    Discover("发现"), Feed("动态"), Inbox("收件箱"), Library("项目库"), Search("搜索"), Profile("我的"), Trending("热榜")
 }
 enum class RepoTab(val label: String) {
     Overview("概览"), Code("代码"), Issues("Issue"), Pulls("PR"), Releases("发布"), Actions("Actions"), Commits("提交"), Discussions("讨论"), Projects("Projects"), Wiki("Wiki"), Contributors("贡献者"), Security("安全公告")
@@ -31,6 +31,10 @@ data class Preferences(
     val mutedTopics: List<String> = emptyList(),
     val mutedRepositories: List<Long> = emptyList(),
     val mutedRepositoryNames: Map<Long, String> = emptyMap(),
+    val trendingPeriod: TrendingPeriod = TrendingPeriod.Daily,
+    val trendingLanguage: String = "",
+    val trendingLanguageName: String = "全部语言",
+    val trendingNotifications: Boolean = false,
 ) {
     fun normalized(): Preferences {
         val validTabs = tabs.distinct().take(5).ifEmpty { listOf(MainTab.Discover) }
@@ -45,6 +49,8 @@ data class Preferences(
                 .filter { it.matches(Regex("[a-z0-9][a-z0-9-]{0,49}")) }.distinct().take(20),
             mutedTopics = mutedTopics.map { it.trim().lowercase() }.filter { it.matches(Regex("[a-z0-9][a-z0-9-]{0,49}")) }.distinct(),
             mutedRepositories = mutedRepositories.filter { it > 0 }.distinct(),
+            trendingLanguage = trendingLanguage.takeIf(TrendingRules::validLanguage) ?: "",
+            trendingLanguageName = if (trendingLanguage.isEmpty() || !TrendingRules.validLanguage(trendingLanguage)) "全部语言" else trendingLanguageName.take(100),
         )
     }
 }

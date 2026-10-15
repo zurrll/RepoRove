@@ -20,15 +20,24 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
     private int networkRetries;
     private boolean oauthProbe;
     private boolean downloadProbe;
+    private boolean trendingProbe;
     @Override public void onCreate(Bundle arguments) {
         super.onCreate(arguments);
         oauthProbe = arguments != null && "true".equals(arguments.getString("oauth_probe"));
         downloadProbe = arguments != null && "true".equals(arguments.getString("download_probe"));
+        trendingProbe = arguments != null && "true".equals(arguments.getString("trending_probe"));
         start();
     }
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
+            if (trendingProbe) {
+                boolean background = verifyTrendingAndDailyNotifications();
+                result.putBoolean("background_job_verified", background);
+                result.putInt("network_retries", networkRetries);
+                result.putString("result", "PASS: actual R8 APK reads full GitHub day/week/month and language boards, opens personalized picks, posts a real deduplicated notification, opens its saved selection from the notification shade, and disables the job and notification");
+                finish(Activity.RESULT_OK, result); return;
+            }
             if (downloadProbe) {
                 verifyDownloadedApkOpensAndDeletes();
                 result.putString("result", "PASS: actual R8 APK downloads the public RepoRove APK, reads its system content URI, opens the system installer without installing, and deletes both the file and download record");
@@ -132,7 +141,7 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             waitFor("text", "尚未保存离线仓库");
             getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             click(waitFor("desc", "我的")); click(waitFor("desc", "设置")); click(waitFor("button", "关于"));
-            click(waitFor("button", "版本更新记录")); waitFor("text", "0.6.1 · 当前"); capture("release-version-history");
+            click(waitFor("button", "版本更新记录")); waitFor("text", "0.6.2 · 当前"); capture("release-version-history");
             shell("svc wifi enable");
             shell("svc data enable");
             result.putString("result", "PASS: R8 APK prompts for clipboard links, saves a real GitHub snapshot with production foreground service, opens README and code with no active network, opens the file tree, deletes the snapshot, shows version history, and passes existing search/header/release/profile flows");
@@ -141,6 +150,86 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
         } catch (Throwable error) {
             shell("svc wifi enable"); shell("svc data enable"); capture("release-failure"); result.putString("result", "FAIL"); result.putString("error", Log.getStackTraceString(error)); finish(Activity.RESULT_CANCELED, result);
         }
+    }
+    private boolean verifyTrendingAndDailyNotifications() throws Exception {
+        runOnMainSync(() -> ((android.content.ClipboardManager) getTargetContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE))
+            .setPrimaryClip(android.content.ClipData.newPlainText("GitHub link", "https://github.com/termux/termux-app")));
+        getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        click(waitFor("button", "暂不"));
+        click(waitFor("desc", "热榜"));
+        waitForNetwork("text", "GitHub Trending · 日榜");
+        capture("trending-daily-full");
+        waitForWithScroll("text", "已显示源榜提供的全部");
+        capture("trending-complete-tail");
+        for (int attempt = 0; attempt < 30 && find(getUiAutomation().getRootInActiveWindow(), "button", "周榜") == null; attempt++) {
+            AccessibilityNodeInfo scroll = findScrollable(getUiAutomation().getRootInActiveWindow());
+            if (scroll != null) scroll.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
+            SystemClock.sleep(300);
+        }
+        click(waitFor("button", "周榜"));
+        waitForNetwork("text", "GitHub Trending · 周榜");
+        capture("trending-weekly");
+        click(waitFor("button", "月榜"));
+        waitForNetwork("text", "GitHub Trending · 月榜");
+        click(waitFor("button", "全部语言"));
+        AccessibilityNodeInfo input = waitFor("class", "android.widget.EditText");
+        Bundle query = new Bundle(); query.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "Python");
+        if (!input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, query)) throw new AssertionError("Language query was not accepted");
+        click(waitFor("button", "Python"));
+        waitFor("button", "Python");
+        waitForNetwork("text", "GitHub Trending · 月榜");
+        capture("trending-python-monthly");
+        click(waitFor("button", "今日精选"));
+        waitForNetwork("text", "榜单获取于");
+        capture("trending-digest");
+        click(waitFor("button", "每日提醒"));
+        waitFor("text", "每日发现通知");
+        AccessibilityNodeInfo toggle = findCheckable(getUiAutomation().getRootInActiveWindow());
+        if (toggle == null || toggle.isChecked()) throw new AssertionError("Daily notifications were not off by default");
+        click(toggle);
+        android.app.job.JobScheduler scheduler = getTargetContext().getSystemService(android.app.job.JobScheduler.class);
+        long scheduleDeadline = SystemClock.elapsedRealtime() + 10000;
+        while (scheduler.getPendingJob(6201) == null && SystemClock.elapsedRealtime() < scheduleDeadline) SystemClock.sleep(200);
+        if (scheduler.getPendingJob(6201) == null || !scheduler.getPendingJob(6201).isPersisted()) throw new AssertionError("Daily job was not persisted");
+        android.app.NotificationManager manager = getTargetContext().getSystemService(android.app.NotificationManager.class);
+        manager.cancel(6202);
+        int hour = java.time.LocalTime.now().getHour();
+        boolean background = hour >= 9 && hour <= 21;
+        if (background) { getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME); shell("cmd jobscheduler run -f app.reporove 6201"); }
+        else click(waitFor("button", "立即检查今日精选"));
+        android.service.notification.StatusBarNotification notification = null;
+        long deadline = SystemClock.elapsedRealtime() + 60000;
+        do {
+            for (android.service.notification.StatusBarNotification current : manager.getActiveNotifications()) if (current.getId() == 6202) notification = current;
+            if (notification == null) SystemClock.sleep(400);
+        } while (notification == null && SystemClock.elapsedRealtime() < deadline);
+        if (notification == null) throw new AssertionError("Actual daily notification was not posted");
+        long firstWhen = notification.getNotification().when;
+        String title = String.valueOf(notification.getNotification().extras.getCharSequence(android.app.Notification.EXTRA_TITLE));
+        String day = java.time.LocalDate.now().toString();
+        getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS);
+        capture("trending-notification-shade");
+        click(waitFor("text", title));
+        waitFor("text", day + " 的精选");
+        capture("trending-notification-selection");
+        if (background) {
+            shell("cmd jobscheduler run -f app.reporove 6201"); SystemClock.sleep(1000);
+            for (android.service.notification.StatusBarNotification current : manager.getActiveNotifications()) if (current.getId() == 6202 && current.getNotification().when != firstWhen) throw new AssertionError("Daily notification was posted twice");
+        }
+        getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+        waitFor("text", "每日发现通知");
+        click(findCheckable(getUiAutomation().getRootInActiveWindow()));
+        long disableDeadline = SystemClock.elapsedRealtime() + 10000;
+        while (scheduler.getPendingJob(6201) != null && SystemClock.elapsedRealtime() < disableDeadline) SystemClock.sleep(200);
+        if (scheduler.getPendingJob(6201) != null) throw new AssertionError("Disabled daily job still exists");
+        for (android.service.notification.StatusBarNotification current : manager.getActiveNotifications()) if (current.getId() == 6202) throw new AssertionError("Disabled daily notification is still visible");
+        return background;
+    }
+    private AccessibilityNodeInfo findCheckable(AccessibilityNodeInfo node) {
+        if (node == null) return null;
+        if (node.isCheckable() && node.isVisibleToUser()) return node;
+        for (int i = 0; i < node.getChildCount(); i++) { AccessibilityNodeInfo found = findCheckable(node.getChild(i)); if (found != null) return found; }
+        return null;
     }
     private void verifyDownloadedApkOpensAndDeletes() throws Exception {
         runOnMainSync(() -> ((android.content.ClipboardManager) getTargetContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE))

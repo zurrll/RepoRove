@@ -5,6 +5,7 @@ import android.view.Window
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,10 +29,15 @@ val LocalAppModel = staticCompositionLocalOf<AppModel> { error("App is not provi
 
 class AppNavigation(private val controller: androidx.navigation.NavHostController) {
     fun root(tab: MainTab) {
+        // A direct heat-board entry must not restore a previously saved digest subpage.
+        if (tab == MainTab.Trending) {
+            if (controller.currentDestination?.route == tab.name) return
+            if (controller.popBackStack(tab.name, false)) return
+        }
         controller.navigate(tab.name) {
             popUpTo(controller.graph.startDestinationId) { saveState = true }
             launchSingleTop = true
-            restoreState = true
+            restoreState = tab != MainTab.Trending
         }
     }
     fun repo(fullName: String, tab: RepoTab = RepoTab.Overview) { controller.navigate("repo/$fullName?tab=${tab.name}") }
@@ -91,11 +97,12 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
     fun offlineCode(id: String, path: String, anchor: String = "") { controller.navigate("offline-code/$id?path=${Uri.encode(path)}&anchor=${Uri.encode(anchor)}") }
     fun settings() { controller.navigate("settings") { launchSingleTop = true } }
     fun downloads() { controller.navigate("downloads") { launchSingleTop = true } }
+    fun trendingDigest(day: String = "") { controller.navigate("trending-digest?day=${Uri.encode(day)}") { launchSingleTop = true } }
     fun back() { controller.popBackStack() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun RepoRoveApp(container: AppContainer, window: Window? = null) {
+@Composable fun RepoRoveApp(container: AppContainer, window: Window? = null, notificationDay: String? = null, onNotificationHandled: () -> Unit = {}) {
     val preferencesFlow = remember(container) { container.local.preferences.map { it as Preferences? } }
     val preferences by preferencesFlow.collectAsStateWithLifecycle(initialValue = null)
     val account by container.repository.account.collectAsStateWithLifecycle()
@@ -109,6 +116,7 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
         key(accountScope) {
             val controller = rememberNavController()
             val navigation = remember(controller) { AppNavigation(controller) }
+            LaunchedEffect(notificationDay) { notificationDay?.let { navigation.trendingDigest(it); onNotificationHandled() } }
             val entry by controller.currentBackStackEntryAsState()
             val route = entry?.destination?.route ?: prefs.home.name
             val start = remember { prefs.home.name }
@@ -120,7 +128,8 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
                 route.startsWith("thread/") -> if (entry?.arguments?.getBoolean("pull") == true) "Pull Request" else "Issue"
                 route.startsWith("release/") -> "版本详情"
                 route == "settings" -> "设置"
-                route.startsWith("settings/") -> when (entry?.arguments?.getString("section")) { "history" -> "版本更新记录"; "licenses" -> "开源许可与致谢"; "appearance" -> "外观与阅读"; "navigation" -> "导航与启动"; "repository" -> "仓库布局"; "feedback" -> "推荐排除"; else -> "关于" }
+                route.startsWith("settings/") -> when (entry?.arguments?.getString("section")) { "history" -> "版本更新记录"; "licenses" -> "开源许可与致谢"; "appearance" -> "外观与阅读"; "navigation" -> "导航与启动"; "repository" -> "仓库布局"; "feedback" -> "推荐排除"; "trending" -> "每日发现提醒"; else -> "关于" }
+                route.startsWith("trending-digest") -> "每日发现"
                 route == "organizations" -> "我的组织"
                 route.startsWith("check/") -> "检查详情"
                 route.startsWith("comment/") -> "评论"
@@ -161,6 +170,7 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
                     TopAppBar(title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
                         if (!main) IconButton(onClick = navigation::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
                     }, actions = {
+                        if (main && route != MainTab.Trending.name) IconButton(onClick = { navigation.root(MainTab.Trending) }) { Icon(Icons.AutoMirrored.Outlined.TrendingUp, "热榜") }
                         if (main && route != MainTab.Search.name && (route != MainTab.Profile.name || account == null)) IconButton(onClick = { navigation.root(MainTab.Search) }) { Icon(Icons.Outlined.Search, "搜索") }
                         if (main && route != MainTab.Profile.name) IconButton(onClick = { navigation.root(MainTab.Profile) }) { UserAvatar(account, Modifier.size(28.dp), "我的") }
                         if (route == MainTab.Profile.name) IconButton(onClick = navigation::settings) { Icon(Icons.Outlined.Settings, "设置") }
@@ -169,7 +179,7 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
                 bottomBar = {
                     if (main) NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
                         prefs.tabs.forEach { tab -> NavigationBarItem(selected = route == tab.name, onClick = { navigation.root(tab) }, icon = {
-                            Icon(when (tab) { MainTab.Discover -> Icons.Outlined.Explore; MainTab.Feed -> Icons.Outlined.Timeline; MainTab.Inbox -> Icons.Outlined.Inbox; MainTab.Library -> Icons.Outlined.Bookmarks; MainTab.Search -> Icons.Outlined.Search; MainTab.Profile -> Icons.Outlined.PersonOutline }, tab.label)
+                            Icon(when (tab) { MainTab.Discover -> Icons.Outlined.Explore; MainTab.Feed -> Icons.Outlined.Timeline; MainTab.Inbox -> Icons.Outlined.Inbox; MainTab.Library -> Icons.Outlined.Bookmarks; MainTab.Search -> Icons.Outlined.Search; MainTab.Profile -> Icons.Outlined.PersonOutline; MainTab.Trending -> Icons.AutoMirrored.Outlined.TrendingUp }, tab.label)
                         }, label = { Text(tab.label) }) }
                     }
                 },
@@ -177,6 +187,8 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
                 CompositionLocalProvider(LocalAppNavigation provides navigation, LocalAppModel provides app) {
                 NavHost(controller, startDestination = start, modifier = Modifier.fillMaxSize().padding(padding)) {
                     composable(MainTab.Discover.name) { DiscoverScreen(app, prefs, navigation) }
+                    composable(MainTab.Trending.name) { TrendingScreen(app, prefs, navigation) }
+                    composable("trending-digest?day={day}", arguments = listOf(navArgument("day") { defaultValue = "" })) { TrendingDigestScreen(app, prefs, navigation, it.arguments?.getString("day").orEmpty()) }
                     composable(MainTab.Search.name) { SearchScreen(app, prefs, navigation) }
                     composable(MainTab.Library.name) { LibraryScreen(app, prefs, navigation) }
                     composable(MainTab.Feed.name) { FeedScreen(app, navigation) }

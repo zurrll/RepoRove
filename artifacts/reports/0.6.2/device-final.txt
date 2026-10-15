@@ -1,0 +1,9 @@
+
+app.reporove.TrendingFlowTest:.....
+app.reporove.BrowserLoginFlowTest:..
+
+Time: 17.396
+
+OK (7 tests)
+
+

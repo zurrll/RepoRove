@@ -64,6 +64,7 @@ private fun <T> List<T>.moved(value: T, offset: Int): List<T> {
         item { ActionRow("仓库布局", "${prefs.repoTabs.size} 个常驻栏目 · 全仓库共用") { nav.settingsSection("repository") } }
         item { ActionRow("推荐兴趣", "${prefs.interests.size} 个兴趣 · 也可在为你调整", nav::interests) }
         item { ActionRow("推荐排除", "${prefs.mutedRepositories.size} 个项目 · ${prefs.mutedTopics.size} 个主题") { nav.settingsSection("feedback") } }
+        item { ActionRow("每日发现提醒", if (prefs.trendingNotifications) "已开启 · 每天最多一条" else "未开启") { nav.settingsSection("trending") } }
         item { ActionRow("关于", "RepoRove ${BuildConfig.VERSION_NAME}") { nav.settingsSection("about") } }
     }
 }
@@ -77,12 +78,13 @@ private fun <T> List<T>.moved(value: T, offset: Int): List<T> {
     }
     if (section == "history") { VersionHistoryScreen(); return }
     if (section == "feedback") { RecommendationExclusionsScreen(app, prefs); return }
+    if (section == "trending") { TrendingNotificationSettings(app, prefs, nav); return }
     var reset by remember { mutableStateOf(false) }
     val resetLabel = when (section) { "appearance" -> "恢复默认外观与阅读"; "navigation" -> "恢复默认导航"; else -> "恢复默认仓库布局" }
     LazyColumn(Modifier.testTag("settings-detail-list")) {
         if (section == "navigation") {
         item { SectionTitle("底部导航") }
-        item { Note("选择 1–5 项，使用箭头调整顺序。搜索和我的也可从工具栏进入，设置在我的页面中。") }
+        item { Note("选择 1–5 项，使用箭头调整顺序。热榜、搜索和我的也可从工具栏进入，设置在我的页面中。") }
         items(prefs.tabs + MainTab.entries.filterNot { it in prefs.tabs }, key = { "tab:${it.name}" }) { tab ->
             OptionRow(tab, prefs.tabs, tab.label, {
                 when {
