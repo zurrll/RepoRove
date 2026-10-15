@@ -1,0 +1,50 @@
+{
+  "version": "0.6.2",
+  "tag": "v0.6.2",
+  "releaseUrl": "https://github.com/zurrll/RepoRove/releases/tag/v0.6.2",
+  "publishedAt": "2026-10-15T07:58:43Z",
+  "verifiedAt": "2026-10-15T08:00:33.417443+00:00",
+  "isPrerelease": true,
+  "isDraft": false,
+  "tagCommit": "fc5c8aeed00de6330a4b77ccd807209934e686ba",
+  "apkSourceCommit": "80d21ead6844c9ae5a7e607be4b8c634604106a4",
+  "validatedCommit": "2d0eac3c5c7c4647ab321a517541a127c5b32226",
+  "productAndTestSourceUnchangedSinceValidatedCommit": true,
+  "assets": [
+    {
+      "name": "package-manifest.json",
+      "bytes": 2522,
+      "sha256": "a7f9302831eb9c8758f9f642aabfa55522c644115451612449693f7199526f52",
+      "url": "https://github.com/zurrll/RepoRove/releases/download/v0.6.2/package-manifest.json",
+      "serverDigestMatches": true
+    },
+    {
+      "name": "RepoRove-0.6.2-preview.apk",
+      "bytes": 5001301,
+      "sha256": "c4a60639e136515731e2a23f02c064c7757b863680ec035a8e18933e20d04d8e",
+      "url": "https://github.com/zurrll/RepoRove/releases/download/v0.6.2/RepoRove-0.6.2-preview.apk",
+      "serverDigestMatches": true
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 93,
+      "sha256": "436fbca09aae025b9827812a35a577a5a83fe105190142bf30b46f61688b23cb",
+      "url": "https://github.com/zurrll/RepoRove/releases/download/v0.6.2/SHA256SUMS.txt",
+      "serverDigestMatches": true
+    },
+    {
+      "name": "THIRD_PARTY_NOTICES.md",
+      "bytes": 38452,
+      "sha256": "5aaa8192700ab392418d09ebba3d5b32a8e9d0c7bde62c7401bab952d521e6b6",
+      "url": "https://github.com/zurrll/RepoRove/releases/download/v0.6.2/THIRD_PARTY_NOTICES.md",
+      "serverDigestMatches": true
+    }
+  ],
+  "anonymousPublicApkDownload": {
+    "sha256": "c4a60639e136515731e2a23f02c064c7757b863680ec035a8e18933e20d04d8e",
+    "bytes": 5001301,
+    "matchesAcceptanceApk": true
+  },
+  "publicReadmeAndBothNewScreenshotsVerified": true,
+  "userAuthorizedPublication": true
+}
