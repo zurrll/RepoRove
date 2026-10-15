@@ -1,0 +1,3 @@
+INSTRUMENTATION_RESULT: network_retries=0
+INSTRUMENTATION_RESULT: result=PASS: R8 APK prompts for clipboard links, saves a real GitHub snapshot with production foreground service, opens README and code with no active network, opens the file tree, deletes the snapshot, shows version history, and passes existing search/header/release/profile flows
+INSTRUMENTATION_CODE: -1
