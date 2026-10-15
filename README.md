@@ -72,7 +72,7 @@ Android 10+ · 预览版 · MIT 开源
 </details>
 
 <details>
-<summary>0.6.2 验收版：完整热榜与每日精选</summary>
+<summary>完整热榜与每日精选</summary>
 
 <p align="center">
 <img src="docs/images/trending.png" width="240" alt="完整 GitHub 日榜：名次、期间增星与来源时间">&nbsp;
@@ -85,7 +85,7 @@ Android 10+ · 预览版 · MIT 开源
 
 ## 开始使用
 
-0.6.2 正在手机验收，热榜、每日精选与浏览器登录随新版提供；当前公开安装包仍为 0.6.0。
+最新预览版为 [0.6.2](https://github.com/zurrll/RepoRove/releases/tag/v0.6.2)，包含完整热榜、每日精选、浏览器登录与下载文件打开改进。
 
 1. 到 [Releases](https://github.com/zurrll/RepoRove/releases) 选择最新预览版，下载 APK 并安装到 Android 手机上。
 2. 不登录也能浏览公开项目。需要 Star、我的仓库、组织和收件箱时，点“通过浏览器登录”，复制授权码，在 GitHub 官方网页确认后回到 App。也保留访问令牌登录，步骤见 [登录说明](docs/使用指南.md#登录与账号)。

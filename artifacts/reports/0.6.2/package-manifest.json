@@ -4,7 +4,7 @@
   "packageName": "app.reporove",
   "channel": "preview",
   "date": "2026-10-15",
-  "publicationStatus": "awaiting_user_device_verification",
+  "publicationStatus": "published_preview",
   "sourceCommit": "80d21ead6844c9ae5a7e607be4b8c634604106a4",
   "validationCommit": "2d0eac3c5c7c4647ab321a517541a127c5b32226",
   "apk": {
@@ -65,5 +65,12 @@
     "ordinaryUnforcedBackgroundDelivery": "awaiting_user_device_verification",
     "actualAccountAuthorization": "awaiting_user_device_verification",
     "inheritedDownloadOpen": "unchanged since 0.6.1; final signed 0.6.1 APK passed real download/open/delete"
+  },
+  "publication": {
+    "repository": "https://github.com/zurrll/RepoRove",
+    "tag": "v0.6.2",
+    "releaseUrl": "https://github.com/zurrll/RepoRove/releases/tag/v0.6.2",
+    "authorizedByUser": true,
+    "reusedAcceptanceApk": true
   }
 }
