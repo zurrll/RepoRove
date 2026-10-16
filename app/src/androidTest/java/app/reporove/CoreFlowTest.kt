@@ -182,7 +182,7 @@ class CoreFlowTest {
             okhttp3.Response.Builder().request(request).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK").body(("data: $delta\n\ndata: [DONE]\n\n").toResponseBody("text/event-stream".toMediaType())).build()
         }.build())
         container = AppContainer(application, translationClient = translationClient) { token ->
-            val client = OkHttpClient.Builder().addNetworkInterceptor(GitHubHeaders(token, "localhost")).build()
+            val client = OkHttpClient.Builder().proxy(java.net.Proxy.NO_PROXY).addNetworkInterceptor(GitHubHeaders(token, "localhost")).build()
             createApi(token, server.url("/").toString(), client)
         }
         runBlocking {
