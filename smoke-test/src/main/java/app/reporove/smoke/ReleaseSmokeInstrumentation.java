@@ -23,6 +23,11 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
     private boolean trendingProbe;
     private boolean translationProbe;
     private boolean restoreTranslationProbe;
+    private boolean liveTranslationProbe;
+    private boolean cachedLiveTranslationProbe;
+    private int keyPort;
+    private String keyNonce;
+    private Activity monitoredActivity;
     @Override public void onCreate(Bundle arguments) {
         super.onCreate(arguments);
         oauthProbe = arguments != null && "true".equals(arguments.getString("oauth_probe"));
@@ -30,11 +35,19 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
         trendingProbe = arguments != null && "true".equals(arguments.getString("trending_probe"));
         translationProbe = arguments != null && "true".equals(arguments.getString("translation_probe"));
         restoreTranslationProbe = arguments != null && "true".equals(arguments.getString("restore_translation_probe"));
+        liveTranslationProbe = arguments != null && "true".equals(arguments.getString("live_translation_probe"));
+        cachedLiveTranslationProbe = arguments != null && "true".equals(arguments.getString("cached_live_translation_probe"));
+        keyPort = arguments == null ? 0 : Integer.parseInt(arguments.getString("key_port", "0"));
+        keyNonce = arguments == null ? "" : arguments.getString("key_nonce", "");
         start();
     }
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
+            if (liveTranslationProbe || cachedLiveTranslationProbe) {
+                if (liveTranslationProbe) verifyRealTranslation(result); else verifyOfflineTranslationCache(result);
+                finish(Activity.RESULT_OK, result); return;
+            }
             if (translationProbe || restoreTranslationProbe) {
                 verifyTranslationConfiguration(restoreTranslationProbe);
                 result.putString("result", restoreTranslationProbe ? "PASS: R8 reloads encrypted translation configuration after process restart and deletes it from settings" : "PASS: R8 saves translation configuration as ciphertext without making a translation request");
@@ -165,6 +178,106 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
         } catch (Throwable error) {
             shell("svc wifi enable"); shell("svc data enable"); capture("release-failure"); result.putString("result", "FAIL"); result.putString("error", Log.getStackTraceString(error)); finish(Activity.RESULT_CANCELED, result);
         }
+    }
+    private void startMonitoredActivity() throws Exception {
+        runOnMainSync(() -> ((android.content.ClipboardManager) getTargetContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE))
+            .setPrimaryClip(android.content.ClipData.newPlainText("Reading probe", "translation verification")));
+        ActivityMonitor monitor = addMonitor("app.reporove.MainActivity", null, false);
+        getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        monitoredActivity = monitor.waitForActivityWithTimeout(10000);
+        removeMonitor(monitor);
+        if (monitoredActivity == null) throw new AssertionError("Reading activity did not start");
+    }
+    private android.webkit.WebView webView(android.view.View view) {
+        if (view instanceof android.webkit.WebView && view.isShown()) return (android.webkit.WebView) view;
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i=0;i<group.getChildCount();i++) { android.webkit.WebView found = webView(group.getChildAt(i)); if (found != null) return found; }
+        }
+        return null;
+    }
+    private String readerJs(String script) throws Exception {
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicReference<String> result = new java.util.concurrent.atomic.AtomicReference<>("null");
+        runOnMainSync(() -> {
+            android.webkit.WebView view = webView(monitoredActivity.getWindow().getDecorView());
+            if (view == null) latch.countDown();
+            else view.evaluateJavascript(script, text -> { result.set(text); latch.countDown(); });
+        });
+        if (!latch.await(3, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("Reader script timed out");
+        return result.get();
+    }
+    private void waitReader(String script, long timeout) throws Exception {
+        long deadline = SystemClock.elapsedRealtime()+timeout;
+        while (SystemClock.elapsedRealtime()<deadline) { if ("true".equals(readerJs(script))) return; SystemClock.sleep(150); }
+        throw new AssertionError("Reader condition not reached: "+script);
+    }
+    private String receiveLiveKey() throws Exception {
+        if (keyPort < 1024 || keyPort > 65535 || keyNonce.length()<20) throw new AssertionError("Missing one-time local credential bridge");
+        try (java.net.Socket socket = new java.net.Socket("127.0.0.1", keyPort)) {
+            socket.setSoTimeout(5000);
+            socket.getOutputStream().write((keyNonce+"\n").getBytes(java.nio.charset.StandardCharsets.UTF_8)); socket.getOutputStream().flush();
+            String value = new java.io.BufferedReader(new java.io.InputStreamReader(socket.getInputStream(), java.nio.charset.StandardCharsets.UTF_8)).readLine();
+            if (value == null || value.length()<8 || value.length()>2048) throw new AssertionError("Invalid local credential payload");
+            return value;
+        }
+    }
+    private void verifyRealTranslation(Bundle result) throws Exception {
+        String key = receiveLiveKey();
+        startMonitoredActivity();
+        click(waitFor("desc", "我的")); click(waitFor("desc", "设置")); click(waitFor("button", "段落双语"));
+        Bundle value = new Bundle(); value.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, key);
+        if (!waitFor("class", "android.widget.EditText").performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, value)) throw new AssertionError("Key could not be entered");
+        key = null; value.clear();
+        click(waitFor("button", "保存"));
+        click(waitFor("desc", "返回")); // settings -> profile
+        click(waitFor("desc", "搜索"));
+        Bundle query = new Bundle(); query.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "repo:karpathy/micrograd");
+        waitFor("class", "android.widget.EditText").performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, query);
+        waitFor("text", "repo:karpathy/micrograd"); getUiAutomation().waitForIdle(300,5000);
+        click(waitFor("button", "搜索")); click(waitFor("repo", "micrograd"));
+        click(waitFor("text", "阅读全文"));
+        waitReader("document.querySelectorAll('[data-rr-source]').length>0",15000);
+        long start = SystemClock.elapsedRealtime(); click(waitFor("desc", "开启双语"));
+        String chinese = "Array.from(document.querySelectorAll('[data-rr-complete=true]')).some(e=>/[\\u4e00-\\u9fff]/.test(e.innerText))";
+        waitReader(chinese,20000); result.putLong("first_visible_translation_ms",SystemClock.elapsedRealtime()-start);
+        waitReader("document.querySelectorAll('[data-rr-complete=true]').length>=3",12000);
+        int before = Integer.parseInt(readerJs("document.querySelectorAll('[data-rr-complete=true]').length"));
+        capture("translation-real-first-screen"); swipe(false);
+        waitReader("document.querySelectorAll('[data-rr-complete=true]').length>"+before,12000);
+        if (!"0".equals(readerJs("document.querySelectorAll('.rr-error').length"))) throw new AssertionError("Real translation showed a paragraph error");
+        capture("translation-real-after-scroll");
+        click(waitFor("desc", "关闭双语")); click(waitFor("desc", "返回"));
+        click(waitFor("button", "保存到 App")); click(waitFor("button", "离线保存资料 / 源码"));
+        waitFor("text", "保存到本机");
+        // Save documents only. No reason to download repository source for this probe.
+        java.util.ArrayList<AccessibilityNodeInfo> checks = new java.util.ArrayList<>(); collectChecks(getUiAutomation().getRootInActiveWindow(),checks);
+        if (checks.size()!=2) throw new AssertionError("Offline choices changed");
+        if (checks.get(1).isChecked()) click(checks.get(1));
+        click(waitFor("button", "保存")); click(waitFor("desc", "返回"));
+        click(waitFor("button", "项目库")); click(waitFor("button", "离线与最近阅读")); waitForNetwork("button", "阅读");
+        File[] cached = new File(getTargetContext().getFilesDir(),"translation-v2").listFiles();
+        if (cached==null || cached.length<3) throw new AssertionError("Translation cache was not persisted");
+        result.putString("result","PASS: final R8 APK uses real Qwen for linked documentation, continues after scrolling, and persists successful paragraph cache; public micrograd document only");
+    }
+    private void collectChecks(AccessibilityNodeInfo node, java.util.List<AccessibilityNodeInfo> result) {
+        if (node==null)return;if(node.isCheckable())result.add(node);
+        for(int i=0;i<node.getChildCount();i++)collectChecks(node.getChild(i),result);
+    }
+    private void verifyOfflineTranslationCache(Bundle result) throws Exception {
+        startMonitoredActivity(); shell("svc wifi disable"); shell("svc data disable");
+        android.net.ConnectivityManager manager = getTargetContext().getSystemService(android.net.ConnectivityManager.class);
+        long deadline=SystemClock.elapsedRealtime()+10000;
+        while(manager.getActiveNetwork()!=null&&SystemClock.elapsedRealtime()<deadline)SystemClock.sleep(100);
+        if(manager.getActiveNetwork()!=null)throw new AssertionError("Network remained available");
+        click(waitFor("button","项目库")); click(waitFor("button","离线与最近阅读")); click(waitFor("button","阅读"));
+        waitReader("document.querySelectorAll('[data-rr-source]').length>0",10000);
+        long start=SystemClock.elapsedRealtime(); click(waitFor("desc","开启双语"));
+        waitReader("Array.from(document.querySelectorAll('[data-rr-complete=true]')).filter(e=>/[\\u4e00-\\u9fff]/.test(e.innerText)).length>=2",3000);
+        result.putLong("cached_translation_ms",SystemClock.elapsedRealtime()-start);
+        capture("translation-real-cache-offline-after-restart");
+        shell("svc wifi enable");shell("svc data enable");
+        result.putString("result","PASS: after process restart, saved documentation reuses real translated paragraphs with wifi and mobile data both disabled");
     }
     private void verifyTranslationConfiguration(boolean restore) throws Exception {
         // This probe does not test clipboard routing. Clear the previous GitHub

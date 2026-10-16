@@ -25,7 +25,10 @@ class TranslationStore(context: Context, private val root: File = File(context.f
     private val mutex = Mutex()
     private val mutableConfig = MutableStateFlow(read())
     val config = mutableConfig.asStateFlow()
-    @Volatile var generation: Long = 0; private set
+    private val mutableRevision = MutableStateFlow(0L)
+    val revision = mutableRevision.asStateFlow()
+    val generation: Long get() = mutableRevision.value
+    suspend fun snapshot() = mutex.withLock { mutableConfig.value to generation }
     suspend fun save(raw: TranslationConfig) = withContext(Dispatchers.IO) {
         val value = raw.validated()
         mutex.withLock {
@@ -33,19 +36,19 @@ class TranslationStore(context: Context, private val root: File = File(context.f
             val encrypted = cipher.doFinal(AppJson.encodeToString(value).toByteArray())
             val blob = Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(encrypted, Base64.NO_WRAP)
             check(prefs.edit().putString("config", blob).commit()) { "无法安全保存翻译配置。" }
-            generation++; mutableConfig.value = value
+            mutableRevision.value++; mutableConfig.value = value
         }
     }
     suspend fun remove() = withContext(Dispatchers.IO) { mutex.withLock {
         check(prefs.edit().clear().commit()) { "无法删除翻译配置。" }
-        generation++; mutableConfig.value = null
+        mutableRevision.value++; mutableConfig.value = null
         check(!root.exists() || root.deleteRecursively()) { "翻译缓存未能全部清除。" }
     } }
     suspend fun clearCache() = withContext(Dispatchers.IO) { mutex.withLock {
-        generation++
+        mutableRevision.value++
         check(!root.exists() || root.deleteRecursively()) { "翻译缓存未能全部清除。" }
     } }
-    fun cacheKey(config: TranslationConfig, block: TranslationBlock, context: String, scope: String): String = TranslationDocument.hash("v2|$scope|${config.engine}|${config.endpoint}|${config.model}|Chinese|${context.take(400)}|${block.text}|${block.protected.joinToString()}")
+    fun cacheKey(config: TranslationConfig, block: TranslationBlock, context: String, scope: String): String = TranslationDocument.hash("v3|$scope|${config.engine}|${config.endpoint}|${config.model}|Chinese|${context.take(400)}|${block.text}|${block.cacheSignature()}")
     suspend fun cached(key: String): String? = withContext(Dispatchers.IO) { mutex.withLock {
         val file = File(root, key)
         runCatching { if (file.length() in 1..96000) file.readText().also { file.setLastModified(System.currentTimeMillis()) } else null }.getOrNull()

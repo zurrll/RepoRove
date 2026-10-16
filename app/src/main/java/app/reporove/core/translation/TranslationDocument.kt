@@ -21,6 +21,17 @@ data class TranslationBlock(val id: String, val text: String, val protected: Lis
         protected.forEachIndexed { index, html -> output = output.replace(token(index), html) }
         return output
     }
+    fun preview(result: String): String {
+        var output = org.jsoup.nodes.TextNode(result.replace(Regex("__RR_[A-Z0-9_]*$"), "")).outerHtml()
+        protected.forEachIndexed { index, html ->
+            output = output.replace(token(index), if (html.startsWith("<a") || html == "</a>") "" else html)
+        }
+        return output.replace(Regex("__RR_[A-Z0-9_]+__"), "")
+    }
+    // Links are reattached from the current document. Their ref/URL is not translated.
+    fun cacheSignature() = protected.joinToString("\u0000") { html ->
+        when { html.startsWith("<a") -> "link-open"; html == "</a>" -> "link-close"; else -> org.jsoup.Jsoup.parseBodyFragment(html).wholeText() }
+    }
     companion object { fun token(index: Int) = "__RR_${index}__" }
 }
 data class BilingualDocument(val html: String, val blocks: List<TranslationBlock>)

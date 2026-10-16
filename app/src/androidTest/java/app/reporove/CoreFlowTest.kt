@@ -40,6 +40,9 @@ class CoreFlowTest {
     private lateinit var container: AppContainer
     private var activity: Activity? = null
     private val queries = CopyOnWriteArrayList<String>()
+    private var slowImageDocument = false
+    private val imageStarted = CountDownLatch(1)
+    private val releaseImage = CountDownLatch(1)
     private val translationRequests = CopyOnWriteArrayList<String>()
     private val markupRequests = java.util.concurrent.atomic.AtomicInteger()
     @Volatile private var starred = false
@@ -80,6 +83,10 @@ class CoreFlowTest {
                 val url = request.requestUrl!!
                 val path = url.encodedPath
                 requestedPaths += path
+                if (path.endsWith("/contents/slow-image.png")) {
+                    imageStarted.countDown(); releaseImage.await(20, TimeUnit.SECONDS)
+                    return MockResponse().setHeader("Content-Type", "application/json").setBody(content("slow-image.png", "fixture image"))
+                }
                 if (disconnected) return MockResponse().setResponseCode(503)
                 if (path.contains("/zipball/")) {
                     if (archiveFailure) return MockResponse().setResponseCode(500)
@@ -95,6 +102,9 @@ class CoreFlowTest {
                     path == "/markdown" && navigationDocument -> {
                         markupRequests.incrementAndGet()
                         return MockResponse().setHeader("Content-Type", "text/html").setBody(if (request.body.clone().readUtf8().contains("# Guide")) guideHtml() else navigationHtml())
+                    }
+                    path == "/markdown" && slowImageDocument -> {
+                        return MockResponse().setHeader("Content-Type", "text/html").setBody("<h1>Ready before images</h1><img src='slow-image.png' alt='slow remote image'><p>Read this documentation before installing <code>sample()</code>.</p>" + "<p>Continue reading the remaining documentation.</p>".repeat(25))
                     }
                     path == "/markdown" && responsiveDocument -> {
                         markupRequests.incrementAndGet()
@@ -177,8 +187,11 @@ class CoreFlowTest {
             val buffer = okio.Buffer(); request.body!!.writeTo(buffer)
             val body = buffer.readUtf8(); translationRequests += body
             assertEquals("Bearer fixture-translation-key", request.header("Authorization"))
+            val options = AppJson.parseToJsonElement(body).jsonObject["translation_options"]!!.jsonObject
+            options["terms"]?.jsonArray?.forEach { assertEquals(setOf("source", "target"), it.jsonObject.keys) }
             val source = AppJson.parseToJsonElement(body).jsonObject["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonPrimitive.content
-            val delta = buildJsonObject { putJsonArray("choices") { add(buildJsonObject { putJsonObject("delta") { put("content", "译文：$source") }; put("finish_reason", "stop") }) } }
+            val translated = if (source.contains("__RR_S0__")) Regex("(__RR_S\\d+__)").replace(source) { it.value + "译文：" } else "译文：$source"
+            val delta = buildJsonObject { putJsonArray("choices") { add(buildJsonObject { putJsonObject("delta") { put("content", translated) }; put("finish_reason", "stop") }) } }
             okhttp3.Response.Builder().request(request).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK").body(("data: $delta\n\ndata: [DONE]\n\n").toResponseBody("text/event-stream".toMediaType())).build()
         }.build())
         container = AppContainer(application, translationClient = translationClient) { token ->
@@ -196,6 +209,7 @@ class CoreFlowTest {
         }
     }
     @After fun teardown() {
+        releaseImage.countDown();
         runBlocking { container.offline.snapshots.value.filter { it.repository.fullName == "demo/paper-reader" }.forEach { container.offline.delete(it.id) } }
         compose.waitForIdle()
         runBlocking { container.repository.logout(); container.translations.remove(); container.local.updatePreferences { Preferences(clipboardLinks = false) } }
@@ -309,6 +323,36 @@ class CoreFlowTest {
         compose.waitUntil(15000) { js("document.body.innerText").contains("Robin Stocker") }
     }
 
+    @Test fun translationStartsBeforeSlowImagesAndCacheSurvivesReturnAndInvalidation() {
+        privateRepository = true; slowImageDocument = true
+        runBlocking { container.repository.login("fixture-github-token"); container.translations.save(app.reporove.core.translation.TranslationConfig(key = "fixture-translation-key", endpoint = "https://translation.fixture.invalid/chat/completions")) }
+        launch(); compose.onNodeWithText("paper-reader").performClick(); waitFor("阅读全文")
+        compose.onAllNodesWithText("阅读全文").onFirst().performClick()
+        compose.waitUntil(10000) { imageStarted.count == 0L }
+        compose.onNodeWithContentDescription("开启双语").performClick(); waitFor("翻译这份私有文档？")
+        compose.onNodeWithText("翻译此文档").performClick()
+        compose.waitUntil(6000) { js("!!document.querySelector('[data-rr-complete=true]')") == "true" }
+        assertEquals("The image is still blocked when translation appears", 1L, releaseImage.count)
+        releaseImage.countDown()
+        js("window.scrollTo(0,600);true")
+        android.os.SystemClock.sleep(500)
+        val before = translationRequests.count { it.contains("Ready before images") }
+        compose.onNodeWithContentDescription("返回").performClick()
+        compose.onAllNodesWithText("阅读全文").onFirst().performClick()
+        compose.onNodeWithContentDescription("开启双语").performClick(); waitFor("翻译这份私有文档？")
+        compose.onNodeWithText("翻译此文档").performClick()
+        compose.waitUntil(5000) { js("!!document.querySelector('[data-rr-complete=true]')") == "true" }
+        // Previously translated first paragraphs survive a new WebView and a new store instance.
+        val restored = app.reporove.core.translation.TranslationStore(InstrumentationRegistry.getInstrumentation().targetContext)
+        assertTrue(File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "translation-v2").listFiles().orEmpty().isNotEmpty())
+        assertEquals("fixture-translation-key", restored.config.value?.key)
+        assertEquals(before, translationRequests.count { it.contains("Ready before images") })
+        val totalBeforeClearing = translationRequests.size
+        runBlocking { container.translations.clearCache() }
+        compose.waitUntil(10000) { translationRequests.size > totalBeforeClearing }
+        compose.waitUntil(10000) { js("!!document.querySelector('[data-rr-complete=true]')") == "true" }
+    }
+
     @Test fun bilingualParagraphsKeepStructureAndReuseCacheWithoutIncreasingToolbarHeight() {
         responsiveDocument = true
         runBlocking { container.translations.save(app.reporove.core.translation.TranslationConfig(key = "fixture-translation-key", endpoint = "https://translation.fixture.invalid/chat/completions")) }
@@ -319,7 +363,7 @@ class CoreFlowTest {
         assertTrue(initialHeight > 500)
         compose.onNodeWithContentDescription("开启双语").performClick()
         compose.waitUntil(15000) { js("document.querySelector('.rr-translation')?.innerText.includes('译文')") == "true" }
-        compose.waitUntil(15000) { js("Array.from(document.querySelectorAll('.rr-translation')).every(e=>!e.innerText.includes('正在翻译'))") == "true" }
+        compose.waitUntil(20000) { js("(() => {const ids=" + app.reporove.core.translation.TranslationScripts.visible + ";return ids.length>0&&ids.every(id=>document.querySelector('[data-rr-target=\"'+id+'\"]')?.dataset.rrComplete==='true');})()") == "true" }
         assertEquals(initialHeight, js("innerHeight").toInt())
         assertEquals("true", js("!!document.querySelector('pre code') && document.querySelectorAll('#prose-table tr').length===2 && document.documentElement.scrollWidth<=innerWidth+1"))
         assertTrue(translationRequests.none { it.contains("val longName") || it.contains("https://github.com/demo/paper-reader") })

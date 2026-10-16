@@ -18,62 +18,44 @@ internal suspend fun WebView.evaluate(script: String): String = withContext(Disp
     }
 }
 
-/** Two requests at most; visible blocks are reprioritized before each small batch. */
-@Composable internal fun BilingualReader(app: AppModel, view: WebView?, blocks: List<TranslationBlock>, enabled: Boolean, loaded: Boolean, identity: String, privateDocument: Boolean?, context: String) {
+@Composable internal fun BilingualReader(app: AppModel, view: WebView?, blocks: List<TranslationBlock>, enabled: Boolean, loaded: Boolean, documentToken: String, identity: String, privateDocument: Boolean?, context: String) {
     val config by app.container.translations.config.collectAsState()
+    val revision by app.container.translations.revision.collectAsState()
+    val renderedRevision = remember(view, documentToken) { longArrayOf(-1L) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var privateConsent by remember(identity, config?.endpoint) { mutableStateOf(false) }
     var declined by remember(identity, config?.endpoint) { mutableStateOf(false) }
-    // Requests and completed UI updates are invalidated on document/config/session changes.
     val bound = remember(identity) { app.container.repository.boundSource() }
-    LaunchedEffect(view, enabled, loaded, identity, config, privateDocument, privateConsent) {
+    LaunchedEffect(view, enabled, loaded, documentToken, identity, blocks, config, revision, privateDocument, privateConsent) {
         if (view == null || !loaded) return@LaunchedEffect
-        view.evaluate(TranslationScripts.mode(enabled))
-        if (!enabled || config == null || privateDocument == null || (privateDocument && !privateConsent)) return@LaunchedEffect
-        val settings = config!!; val store = app.container.translations; val generation = store.generation
-        val completed = mutableSetOf<String>()
-        var paused = false
+        suspend fun evaluate(script: String) = view.evaluate(TranslationScripts.inDocument(documentToken, script))
+        evaluate(TranslationScripts.mode(enabled))
+        if (!enabled || privateDocument == null || (privateDocument && !privateConsent)) return@LaunchedEffect
+        val store = app.container.translations
+        val snapshot = store.snapshot(); val settings = snapshot.first ?: return@LaunchedEffect; val generation = snapshot.second
         val map = blocks.associateBy { it.id }
+        if (renderedRevision[0] != generation) { evaluate(TranslationScripts.reset); renderedRevision[0] = generation }
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            while (isActive && bound.active() && store.generation == generation) {
-                val requested = withContext(Dispatchers.Main.immediate) { (view.getTag(R.id.translation_retry) as? String).also { view.setTag(R.id.translation_retry, null) } }
-                if (requested != null) { completed.remove(requested); paused = false }
-                if (!paused) {
-                    val ids = runCatching { AppJson.parseToJsonElement(view.evaluate(TranslationScripts.visible)).jsonArray.map { it.jsonPrimitive.content } }.getOrDefault(emptyList())
-                    val batch = ids.filterNot { it in completed }.mapNotNull(map::get).take(2)
-                    coroutineScope {
-                        batch.map { block -> launch {
-                            completed += block.id
-                            val active = { bound.active() && store.generation == generation }
-                            try {
-                                val key = store.cacheKey(settings, block, context, bound.scope)
-                                var output = store.cached(key)?.takeIf(block::valid)
-                                if (output == null) {
-                                    view.evaluate(TranslationScripts.insert(block.id, "正在翻译…"))
-                                    var latest = ""
-                                    app.container.translationClient.translate(settings, block.text, context).collect { chunk ->
-                                        ensureActive(); if (!active()) throw CancellationException()
-                                        latest = chunk
-                                        // Partial text is escaped; placeholders never become model-supplied HTML.
-                                        var partial = org.jsoup.nodes.TextNode(chunk.replace(Regex("__RR_\\d*$"), "")).outerHtml()
-                                        block.protected.forEachIndexed { index, html -> partial = partial.replace(TranslationBlock.token(index), html) }
-                                        view.evaluate(TranslationScripts.insert(block.id, partial))
-                                    }
-                                    require(block.valid(latest)) { "译文没有保留代码或链接，请重试。" }
-                                    output = latest
-                                    runCatching { store.cache(key, latest, generation, bound.active) }
-                                }
-                                ensureActive(); if (active()) { view.evaluate(TranslationScripts.insert(block.id, block.render(output))) }
-                            } catch (error: CancellationException) { completed.remove(block.id); throw error }
-                            catch (error: Exception) {
-                                if (error is TranslationFailure && error.pause) paused = true
-                                if (active()) view.evaluate(TranslationScripts.error(block.id, if (error is TranslationFailure || error is IllegalArgumentException) error.message ?: "翻译失败。" else "翻译失败，请稍后重试。"))
-                            }
-                        } }.joinAll()
+            val session = TranslationSession(blocks,
+                cached = { block -> store.cached(store.cacheKey(settings, block, context, bound.scope)) },
+                save = { block, text -> store.cache(store.cacheKey(settings, block, context, bound.scope), text, generation, bound.active) },
+                translate = { batch -> app.container.translationClient.translateBlocks(settings, batch, context) },
+                update = { result ->
+                    if (bound.active() && store.generation == generation) {
+                        val block = map.getValue(result.id)
+                        evaluate(if (result.failure != null) TranslationScripts.error(result.id, result.failure.message ?: "翻译失败。", result.failure.retryable)
+                        else TranslationScripts.insert(result.id, if (result.complete) block.render(result.text) else block.preview(result.text).ifBlank { "正在翻译…" }, complete = result.complete))
                     }
-                }
-                delay(400)
-            }
+                },
+                active = { bound.active() && store.generation == generation },
+                cacheFailed = { app.message("译文已显示，但本机缓存保存失败。") })
+            session.run(
+                viewport = { runCatching { AppJson.parseToJsonElement(evaluate(TranslationScripts.visible)).jsonArray.map { it.jsonPrimitive.content } }.getOrDefault(emptyList()) },
+                retries = { withContext(Dispatchers.Main.immediate) {
+                    val pending = view.getTag(R.id.translation_retry)
+                    view.setTag(R.id.translation_retry, null)
+                    when (pending) { is String -> listOf(pending); is List<*> -> pending.filterIsInstance<String>(); else -> emptyList() }
+                } })
         }
     }
     if (enabled && privateDocument == true && !privateConsent && !declined) AlertDialog(

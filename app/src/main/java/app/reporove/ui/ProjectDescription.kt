@@ -17,27 +17,29 @@ import kotlin.coroutines.coroutineContext
     val text = repo.description?.takeIf(String::isNotBlank) ?: return
     val control = rememberBilingualToggle("description:${repo.fullName}")
     val config by app.container.translations.config.collectAsState()
+    val revision by app.container.translations.revision.collectAsState()
     var consent by remember(repo.id, config?.endpoint) { mutableStateOf(false) }
     var declined by remember(repo.id, config?.endpoint) { mutableStateOf(false) }
     var translation by remember(repo.id, text, config) { mutableStateOf("") }
     var error by remember(repo.id, config) { mutableStateOf<String?>(null) }
     var retry by remember { mutableIntStateOf(0) }
     LaunchedEffect(control.enabled) { if (!control.enabled) declined = false }
-    LaunchedEffect(control.enabled, consent, text, config, retry) {
+    LaunchedEffect(control.enabled, consent, text, config, revision, retry) {
         if (!control.enabled || config == null || (repo.isPrivate && !consent)) return@LaunchedEffect
         val bound = app.container.repository.boundSource()
-        val settings = config!!; val store = app.container.translations; val generation = store.generation
+        val store = app.container.translations; val snapshot = store.snapshot(); val settings = snapshot.first ?: return@LaunchedEffect; val generation = snapshot.second
         val block = TranslationBlock("description", text, emptyList())
         val identity = "${repo.fullName}/description"
         error = null
+        var latest = ""
         try {
             val key = store.cacheKey(settings, block, identity, bound.scope)
             val cached = store.cached(key)?.takeIf(block::valid)
             if (cached != null) translation = cached
             else {
-                app.container.translationClient.translate(settings, text, identity).collect { chunk -> coroutineContext.ensureActive(); if (bound.active() && generation == store.generation) translation = chunk }
-                require(block.valid(translation)) { "译文不完整，请重试。" }
-                runCatching { store.cache(key, translation, generation, bound.active) }
+                app.container.translationClient.translate(settings, text, identity).collect { chunk -> coroutineContext.ensureActive(); if (bound.active() && generation == store.generation) { latest = chunk; translation = chunk } }
+                require(block.valid(latest)) { "译文不完整，请重试。" }
+                runCatching { store.cache(key, latest, generation, bound.active) }
             }
         } catch (error: CancellationException) { throw error }
         catch (failure: Exception) { error = if (failure is TranslationFailure) failure.message else "翻译失败，请重试。" }

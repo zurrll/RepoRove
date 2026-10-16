@@ -12,7 +12,7 @@ android {
         applicationId = "app.reporove"
         minSdk = 29
         targetSdk = 36
-        versionCode = 10
+        versionCode = 11
         versionName = "0.6.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val clientId = providers.gradleProperty("githubOAuthClientId").orElse("").get()

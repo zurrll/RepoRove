@@ -74,14 +74,18 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
     }
     var height by remember(markdown) { mutableStateOf(200) }
     var webView by remember { mutableStateOf<WebView?>(null) }
+    val disposed = remember { booleanArrayOf(false) }
     var previousDocument by remember { mutableStateOf<String?>(null) }
     var previousBody by remember { mutableStateOf<String?>(null) }
     var readingY by rememberSaveable(fullName, ref, path) { mutableStateOf(0) }
     var anchorApplied by rememberSaveable(fullName, ref, path, initialAnchor) { mutableStateOf(false) }
     var restoringY by remember { mutableStateOf(0) }
     var loadingDocument by remember { mutableStateOf(true) }
+    var translationReady by remember { mutableStateOf(false) }
+    var documentToken by remember { mutableStateOf("") }
     val currentDocument by rememberUpdatedState(document)
     fun measure(view: WebView) {
+        if (disposed[0] || view !== webView) return
         view.evaluateJavascript("""
             (() => {
               document.querySelectorAll('[data-scroll-kind]').forEach(block => {
@@ -91,7 +95,26 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
               });
               return Math.ceil(document.body.getBoundingClientRect().height);
             })()
-        """.trimIndent()) { value -> if (!fill && !preview) value.toDoubleOrNull()?.let { height = it.toInt() } }
+        """.trimIndent()) { value -> if (!disposed[0] && !fill && !preview) value.toDoubleOrNull()?.let { height = it.toInt() } }
+    }
+    fun awaitReady(view: WebView, token: String, attempt: Int = 0) {
+        if (disposed[0] || view !== webView || token != documentToken) return
+        val script = "document.readyState !== 'loading' && document.body?.dataset.rrDocument === " + org.json.JSONObject.quote(token)
+        view.evaluateJavascript(script) { ready ->
+            if (disposed[0] || view !== webView || token != documentToken) return@evaluateJavascript
+            if (ready == "true") {
+                // DOM readiness must not wait for remote badges/images or a late load callback.
+                if (loadingDocument) {
+                    loadingDocument = false
+                    if (initialAnchor.isNotBlank() && !anchorApplied) {
+                        fun locate() = view.evaluateJavascript(ReaderAnchors.script(initialAnchor)) { result -> if (token == documentToken) anchorApplied = result == "true" }
+                        locate(); view.postDelayed({ if (token == documentToken && !anchorApplied) locate() }, 600)
+                    } else view.scrollTo(0, restoringY)
+                    measure(view)
+                }
+                translationReady = true
+            } else if (attempt < 60) view.postDelayed({ awaitReady(view, token, attempt + 1) }, 80)
+        }
     }
     val navigate by rememberUpdatedState<(String) -> Unit> { url ->
         val snapshot = offlineId?.let(app.container.offline::find)
@@ -105,8 +128,8 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
         } else if (snapshot != null && target is GitHubTarget.Repo && target.fullName == snapshot.repository.fullName) nav.offlineRepo(snapshot.id)
         else nav.open(url, app) { openUrl(context, it) }
     }
-    DisposableEffect(Unit) { onDispose { webView?.apply { stopLoading(); destroy() }; webView = null } }
-    if (translationAllowed) BilingualReader(app, webView, document?.translationBlocks.orEmpty(), bilingual, !loadingDocument, "$fullName/$ref/$path", isPrivate, "$fullName/$path")
+    DisposableEffect(Unit) { onDispose { disposed[0] = true; webView?.apply { stopLoading(); destroy() } } }
+    if (translationAllowed) BilingualReader(app, webView, document?.translationBlocks.orEmpty(), bilingual, translationReady, documentToken, "$fullName/$ref/$path", isPrivate, "$fullName/$path")
     Column(modifier) {
 
         val prepared = document
@@ -145,22 +168,17 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
                             WebResourceResponse(mime, null, bytes.inputStream())
                         } catch (_: Exception) { WebResourceResponse("text/plain", "UTF-8", 403, "Unavailable", emptyMap(), "".byteInputStream()) }
                     }
+                    override fun onPageCommitVisible(view: WebView, url: String?) { awaitReady(view, documentToken) }
                     override fun onPageFinished(view: WebView, url: String?) {
-                        view.post {
-                            loadingDocument = false
-                            if (initialAnchor.isNotBlank() && !anchorApplied) {
-                                fun locate() = view.evaluateJavascript(ReaderAnchors.script(initialAnchor)) { result -> anchorApplied = result == "true" }
-                                locate()
-                                view.postDelayed({ if (!anchorApplied) locate() }, 600)
-                            } else view.scrollTo(0, restoringY)
-                            measure(view)
-                            view.postDelayed({ measure(view) }, 600)
-                        }
+                        awaitReady(view, documentToken)
+                        measure(view); view.postDelayed({ measure(view) }, 600)
                     }
                     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                         val url = request.url.toString()
                         if (request.url.host == "reader.reporove.invalid" && request.url.path?.startsWith("/translate-retry/") == true) {
-                            view.setTag(R.id.translation_retry, request.url.lastPathSegment)
+                            val pending = view.getTag(R.id.translation_retry)
+                            val retries = when (pending) { is String -> listOf(pending); is List<*> -> pending.filterIsInstance<String>(); else -> emptyList() }
+                            view.setTag(R.id.translation_retry, (retries + listOfNotNull(request.url.lastPathSegment)).distinct())
                             return true
                         }
                         if (request.url.host == "reader.reporove.invalid" && request.url.path?.startsWith("/copy/") == true) {
@@ -213,8 +231,11 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
                         view.evaluateJavascript("document.querySelector('style').textContent=" + org.json.JSONObject.quote(css)) { measure(view) }
                     } else {
                         restoringY = readingY
-                        loadingDocument = true
-                        view.loadDataWithBaseURL("https://reader.reporove.invalid/", prepared.html, "text/html", "UTF-8", null)
+                        loadingDocument = true; translationReady = false
+                        val token = java.util.UUID.randomUUID().toString(); documentToken = token
+                        val source = prepared.html.replaceFirst("<body>", "<body data-rr-document=\"$token\">")
+                        view.loadDataWithBaseURL("https://reader.reporove.invalid/", source, "text/html", "UTF-8", null)
+                        view.post { awaitReady(view, token) }
                     }
 
                 }
