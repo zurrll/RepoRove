@@ -25,6 +25,7 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
     private boolean restoreTranslationProbe;
     private boolean liveTranslationProbe;
     private boolean cachedLiveTranslationProbe;
+    private boolean reuseTranslationConfig;
     private int keyPort;
     private String keyNonce;
     private Activity monitoredActivity;
@@ -37,6 +38,7 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
         restoreTranslationProbe = arguments != null && "true".equals(arguments.getString("restore_translation_probe"));
         liveTranslationProbe = arguments != null && "true".equals(arguments.getString("live_translation_probe"));
         cachedLiveTranslationProbe = arguments != null && "true".equals(arguments.getString("cached_live_translation_probe"));
+        reuseTranslationConfig = arguments != null && "true".equals(arguments.getString("reuse_translation_config"));
         keyPort = arguments == null ? 0 : Integer.parseInt(arguments.getString("key_port", "0"));
         keyNonce = arguments == null ? "" : arguments.getString("key_nonce", "");
         start();
@@ -204,12 +206,23 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             if (view == null) latch.countDown();
             else view.evaluateJavascript(script, text -> { result.set(text); latch.countDown(); });
         });
-        if (!latch.await(3, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("Reader script timed out");
+        // Navigation can dispose the outgoing preview before its callback runs.
+        // The caller's bounded wait resolves the current reader again each time.
+        if (!latch.await(3, java.util.concurrent.TimeUnit.SECONDS)) return "null";
         return result.get();
     }
     private void waitReader(String script, long timeout) throws Exception {
         long deadline = SystemClock.elapsedRealtime()+timeout;
         while (SystemClock.elapsedRealtime()<deadline) { if ("true".equals(readerJs(script))) return; SystemClock.sleep(150); }
+        System.out.println("READER_DIAGNOSTIC="+readerJs("JSON.stringify({ready:document.readyState,sources:document.querySelectorAll('[data-rr-source]').length,complete:document.querySelectorAll('[data-rr-complete=true]').length,pending:window.__rrPending?.size,scheduled:window.__rrScheduled,touching:window.__rrTouching,busy:window.__rrBusyUntil,now:Date.now(),targets:Array.from(document.querySelectorAll('[data-rr-target]')).slice(0,4).map(e=>e.innerText.slice(0,100))})"));
+        File[] saved = new File(getTargetContext().getFilesDir(),"translation-v2").listFiles();
+        System.out.println("CACHE_FILES="+(saved==null?0:saved.length));
+        for(java.util.Map.Entry<Thread,StackTraceElement[]> entry:Thread.getAllStackTraces().entrySet()) {
+            if(entry.getKey().getName().startsWith("OkHttp")) {
+                System.out.println("TRANSPORT_THREAD="+entry.getKey().getName()+" "+entry.getKey().getState());
+                for(int i=0;i<Math.min(10,entry.getValue().length);i++)System.out.println("  "+entry.getValue()[i]);
+            }
+        }
         throw new AssertionError("Reader condition not reached: "+script);
     }
     private String receiveLiveKey() throws Exception {
@@ -223,21 +236,33 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
         }
     }
     private void verifyRealTranslation(Bundle result) throws Exception {
-        String key = receiveLiveKey();
+        String key = reuseTranslationConfig ? null : receiveLiveKey();
         startMonitoredActivity();
+        if (!reuseTranslationConfig) {
         click(waitFor("desc", "我的")); click(waitFor("desc", "设置")); click(waitFor("button", "段落双语"));
+        getUiAutomation().waitForIdle(500,5000);
+        AccessibilityNodeInfo keyInput = waitFor("class", "android.widget.EditText");
+        keyInput.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
         Bundle value = new Bundle(); value.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, key);
-        if (!waitFor("class", "android.widget.EditText").performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, value)) throw new AssertionError("Key could not be entered");
+        if (!keyInput.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, value)) throw new AssertionError("Key could not be entered");
         key = null; value.clear();
+        getUiAutomation().waitForIdle(300,5000);
         click(waitFor("button", "保存"));
         click(waitFor("desc", "返回")); // settings -> profile
+        }
         click(waitFor("desc", "搜索"));
+        waitFor("text", "查找项目与内容");
+        getUiAutomation().waitForIdle(500,5000);
         Bundle query = new Bundle(); query.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "repo:karpathy/micrograd");
-        waitFor("class", "android.widget.EditText").performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, query);
+        AccessibilityNodeInfo searchInput = waitFor("class", "android.widget.EditText");
+        searchInput.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+        if (!searchInput.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, query)) throw new AssertionError("Search input was not accepted");
         waitFor("text", "repo:karpathy/micrograd"); getUiAutomation().waitForIdle(300,5000);
         click(waitFor("button", "搜索")); click(waitFor("repo", "micrograd"));
         click(waitFor("text", "阅读全文"));
+        waitFor("text", "README.md"); getUiAutomation().waitForIdle(500,5000);
         waitReader("document.querySelectorAll('[data-rr-source]').length>0",15000);
+        getUiAutomation().waitForIdle(500,5000);
         long start = SystemClock.elapsedRealtime(); click(waitFor("desc", "开启双语"));
         String chinese = "Array.from(document.querySelectorAll('[data-rr-complete=true]')).some(e=>/[\\u4e00-\\u9fff]/.test(e.innerText))";
         waitReader(chinese,20000); result.putLong("first_visible_translation_ms",SystemClock.elapsedRealtime()-start);
