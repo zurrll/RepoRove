@@ -41,7 +41,7 @@ Android 10+ · 预览版 · MIT 开源
 
 到 [Releases](https://github.com/zurrll/RepoRove/releases) 下载 APK 安装；同签名预览版可覆盖更新。不登录也能浏览公开项目，需要 Star、自己的仓库和通知时，在“我的”通过 GitHub 官方网页授权登录。
 
-最新公开版为 [0.6.2](https://github.com/zurrll/RepoRove/releases/tag/v0.6.2)。当前源码为 0.6.3，正在验收，段落双语等新变化尚未公开出包。翻译需在设置中填写自己的服务 Key，按服务用量计费。
+最新公开版为 [0.6.3](https://github.com/zurrll/RepoRove/releases/tag/v0.6.3)。翻译需在设置中填写自己的服务 Key，按服务用量计费。
 
 目前以浏览和阅读为主，评论提交、PR 审核、构建重跑等操作尚未完整提供。离线范围与登录说明见[使用指南](docs/使用指南.md)。这是独立客户端，与 GitHub 官方没有隶属关系。
 

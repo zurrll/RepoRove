@@ -1,8 +1,8 @@
 # 更新记录
 
-安装包见 [Releases](https://github.com/zurrll/RepoRove/releases)。当前源码 0.6.3 待验收，公开最新版本为 0.6.2。
+安装包见 [Releases](https://github.com/zurrll/RepoRove/releases)。
 
-## 0.6.3 · 待验收
+## [0.6.3](https://github.com/zurrll/RepoRove/releases/tag/v0.6.3) · 2026-10-16
 
 - 新增自带 Key 的段落双语，限项目介绍和文档，保留原文与代码。
 - 修正翻译参数与持续调度，缓存优先复用；正文翻译不再等待远端图片加载。
