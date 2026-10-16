@@ -167,10 +167,11 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
         }
     }
     private void verifyTranslationConfiguration(boolean restore) throws Exception {
+        // This probe does not test clipboard routing. Clear the previous GitHub
+        // link so a delayed cold-start prompt cannot cover the settings entry.
+        runOnMainSync(() -> ((android.content.ClipboardManager) getTargetContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE))
+            .setPrimaryClip(android.content.ClipData.newPlainText("Configuration probe", "translation configuration probe")));
         getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        SystemClock.sleep(1500);
-        AccessibilityNodeInfo dismiss = find(getUiAutomation().getRootInActiveWindow(), "button", "暂不");
-        if (dismiss != null) click(dismiss);
         click(waitFor("desc", "我的")); click(waitFor("desc", "设置")); click(waitFor("button", "段落双语"));
         if (!restore) {
             AccessibilityNodeInfo input = waitFor("class", "android.widget.EditText");
