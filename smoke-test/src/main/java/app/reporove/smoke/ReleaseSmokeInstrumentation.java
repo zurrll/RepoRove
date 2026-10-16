@@ -146,9 +146,12 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             click(waitFor("desc", "文件树")); waitFor("text", "文件树"); capture("release-offline-tree");
             getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             getUiAutomation().waitForIdle(500, 5000);
-            for (int level = 0; level < 10 && find(getUiAutomation().getRootInActiveWindow(), "button", "删除") == null; level++) {
-                click(waitFor("desc", "返回")); getUiAutomation().waitForIdle(500, 5000);
+            // Await each destination, rather than treating a temporarily absent
+            // delete button during a transition as permission to pop again.
+            for (String directory : new String[] { "main", "src", "app", "根目录" }) {
+                click(waitFor("desc", "返回")); waitFor("button", directory);
             }
+            click(waitFor("desc", "返回")); waitFor("text", "离线与最近阅读");
             click(waitFor("button", "删除")); waitFor("text", "删除离线快照？"); click(waitFor("button", "删除"));
             waitFor("text", "尚未保存离线仓库");
             getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
