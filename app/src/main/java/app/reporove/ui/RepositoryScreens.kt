@@ -66,7 +66,7 @@ import app.reporove.data.GitHubRepository
                     IconButton(onClick = { nav.search("repo:${repo.fullName}") }) { Icon(Icons.Outlined.Search, "搜索此仓库") }
                     IconButton(onClick = { openUrl(context, repo.htmlUrl) }) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, "在 GitHub 中打开") }
                 }
-                repo.description?.let { Text(it, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.bodyLarge, maxLines = 3, overflow = TextOverflow.Ellipsis) }
+                ProjectDescription(app, repo)
                 RepositoryMetadata(app, repo)
                 if (repo.archived) Note("这个仓库已归档。")
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -165,21 +165,37 @@ import app.reporove.data.GitHubRepository
     val model = screenModel("readme:$fullName") { ResourceModel<Pair<Content, Repository>>() }
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(fullName) { model.configure(fullName) { refresh -> val content = app.container.repository.readme(fullName, refresh); val repo = app.container.repository.repository(fullName).data; Loaded(content.data to repo, content.cachedAt, content.offline) } }
+    val nav = LocalAppNavigation.current
+    val context = LocalContext.current
+    val ready = state as? LoadState.Ready
+    val translation = rememberBilingualToggle("readme:$fullName")
+    var menu by remember { mutableStateOf(false) }
+    var details by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(fullName, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-            SourceBadge((state as? LoadState.Ready)?.offline == true, (state as? LoadState.Ready)?.cachedAt ?: 0, refresh = model::refresh)
-            IconButton(onClick = { model.refresh() }) { Icon(Icons.Outlined.Refresh, "刷新 README") }
+        ReaderBar(ready?.value?.first?.name ?: "README", nav::back, { details = true }) {
+            SourceBadge(ready?.offline == true, ready?.cachedAt ?: 0, refresh = model::refresh)
+            BilingualButton(translation)
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreHoriz, "文档操作") }
+                DropdownMenu(menu, { menu = false }) {
+                    DropdownMenuItem(text = { Text("刷新 README") }, onClick = { menu = false; model.refresh() })
+                    ready?.value?.let { (content, repo) ->
+                        DropdownMenuItem(text = { Text("在文件树中打开") }, onClick = { menu = false; nav.code(fullName, repo.defaultBranch, content.path) })
+                        DropdownMenuItem(text = { Text("复制整个文件") }, onClick = { menu = false; runCatching { GitHubRepository.text(content) }.getOrNull()?.let { copyText(context, content.name, it) } })
+                    }
+                }
+            }
         }
         Resource(state, model::refresh, showCacheNote = false) { (content, repo) ->
             val text = remember(content) { runCatching { GitHubRepository.text(content) } }
-            text.getOrNull()?.let { MarkdownBody(it, prefs, Modifier.fillMaxSize(), fullName, repo.defaultBranch, content.path, fill = true, privateHint = repo.isPrivate) } ?: EmptyState("无法直接预览", text.exceptionOrNull()?.message)
+            text.getOrNull()?.let { MarkdownBody(it, prefs, Modifier.fillMaxSize(), fullName, repo.defaultBranch, content.path, fill = true, privateHint = repo.isPrivate, bilingual = translation.enabled, translationAllowed = true) } ?: EmptyState("无法直接预览", text.exceptionOrNull()?.message)
         }
     }
+    if (details) AlertDialog(onDismissRequest = { details = false }, title = { Text(fullName) }, text = { Text("${ready?.value?.second?.defaultBranch.orEmpty()}\n${ready?.value?.first?.path.orEmpty()}") }, confirmButton = { TextButton(onClick = { details = false }) { Text("完成") } })
 }
 
-@Composable fun CodeScreen(app: AppModel, prefs: Preferences, nav: AppNavigation, fullName: String, ref: String, path: String, anchor: String = "") {
-    CodeBrowser(app, prefs, nav, fullName, ref, path, anchor)
+@Composable fun CodeScreen(app: AppModel, prefs: Preferences, nav: AppNavigation, fullName: String, ref: String, path: String, anchor: String = "", standalone: Boolean = false) {
+    CodeBrowser(app, prefs, nav, fullName, ref, path, anchor, standalone = standalone)
 }
 
 @Composable private fun IssuesScreen(app: AppModel, nav: AppNavigation, fullName: String, pulls: Boolean) {

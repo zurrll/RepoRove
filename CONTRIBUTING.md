@@ -1,46 +1,29 @@
 # 参与 RepoRove
 
-欢迎先通过 [Issues](https://github.com/zurrll/RepoRove/issues) 分享体验问题或讨论改进。请说明版本、设备、步骤及实际表现；不要提交令牌、私有仓库内容或签名文件。
+欢迎通过 [Issues](https://github.com/zurrll/RepoRove/issues) 讨论改进。反馈请附版本、设备和复现步骤；不要提交密钥或私有仓库内容。
 
-项目采用 [MIT](LICENSE)。生产 App 位于 `app/`，早期网页原型在 `前期资料/`，仅供回看产品设计。
+## 构建与测试
 
-## 构建
-
-使用 JDK 17、Android SDK Platform 36 和 Build Tools 35.0.0。设置 `ANDROID_HOME`，或在不提交的 `local.properties` 写入 `sdk.dir`。
+需要 JDK 17、Android SDK Platform 36、Build Tools 35.0.0。设置 `ANDROID_HOME`，或在本机 `local.properties` 中填写 `sdk.dir`。
 
 ```sh
 ./gradlew :app:assembleDebug
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleRelease
-```
-
-Release 默认启用 R8，并生成未签名 APK；自行构建需要自己的签名。官方预览包可从 [Releases](https://github.com/zurrll/RepoRove/releases) 下载。源码在 `gradle.properties` 提供 RepoRove 的公开 OAuth Client ID。派生项目可通过 `-PgithubOAuthClientId=...` 使用自己的应用标识，注册时开启 Device Flow；App 支持有期限凭据续期，不需要 Client Secret，禁止把它放入 APK。配置为空时仍可使用 PAT。注册与发布状态见 [0.6.1 登录与下载修复](0.6.1登录与下载修复.md)。
-
-## 测试
-
-```sh
-./gradlew :app:assembleDebugAndroidTest
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-确定性设备测试使用本机 HTTP 夹具，不依赖真实令牌。真实 GitHub API / 下载测试需主动启用；独立 `smoke-test` 用于实际 R8 包的生产流程验证。CI 构建、运行单元测试并检查 Debug / Release lint，不冒充已完成真机测试。
+设备测试需先启动模拟器或连接手机；确定性用例使用本机 HTTP 夹具。`smoke-test/` 验证实际 R8 安装包。内存有限时，将构建和模拟器分开运行，添加 `--no-daemon --max-workers=1`。
 
-内存较小的电脑建议限制为两个 worker，并把构建与模拟器分开运行：
+Release 默认未签名，官方预览包使用同一开发签名。`gradle.properties` 内是公开的 OAuth Client ID；派生项目可用 `-PgithubOAuthClientId=...` 替换为自己的 Device Flow 应用，不需要 Client Secret。
 
-```sh
-./gradlew :app:assembleDebug --no-daemon --max-workers=2 \
-  -Dorg.gradle.jvmargs='-Xmx2048m -Dfile.encoding=UTF-8' \
-  -Pkotlin.compiler.execution.strategy=in-process
-```
+## 代码约定
 
-## 修改约定
+Kotlin、Compose、Retrofit / OkHttp、DataStore；`core/` 管模型、存储和阅读处理，`data/` 管数据流程，`ui/` 管共用组件与页面。
 
-先读 [工程说明](工程说明.md)、[当前批次](0.6.1登录与下载修复.md) 与 [协作约定](AGENTS.md)。修改应有明确使用场景，并验证涉及的真实行为。
+- 使用真实数据，保留错误和缺失状态；异步结果绑定查询与账号会话。
+- 原生和 HTML 共用主题；阅读改动兼顾在线 / 离线、表格、链接、滚动和返回位置。
+- GitHub 凭据与翻译 Key 分开加密；只向对应主机发送，禁止重定向泄露。私有内容和缓存在账号间隔离。
+- 下载删除确认磁盘结果，失败保留记录。源码、测试及必要许可公开；过程报告、本机设置与产物不提交。
+- 更新功能时同步 `changelog.json` 和必要用户说明。目录数据用 `scripts/update_catalogs.py` 更新并保留来源、版本和许可。
 
-- 使用真实 GitHub 数据，保留错误与缺失状态；不把假结果写入生产页面。
-- 原生和文档共用主题语义色；阅读改动同时检查文档、普通源码和离线内容。
-- 保持账号隔离；令牌仅发送到受约束的 API 主机。
-- 下载删除核验磁盘结果；失败保留记录。稍后看、Star、跟踪与 Watch 的语义保持清楚。
-- 更新目录使用 `scripts/update_catalogs.py`，保留来源版本、署名和第三方许可证。
-- 行为变化更新本轮文档与 `changelog.json`；历史记录保留其当时状态。
-
-APK、密钥、SDK、本机设置、缓存和 R8 mapping 不提交到源码仓库。集中完成授权批次后再出包，日常反馈先记录。新建分支默认用 `codex/` 前缀。
+采用 [MIT](LICENSE)。贡献分支建议使用 `codex/` 前缀，提交说明写清使用场景和验证结果。

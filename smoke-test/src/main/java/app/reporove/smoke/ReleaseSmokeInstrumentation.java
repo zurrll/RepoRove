@@ -21,16 +21,25 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
     private boolean oauthProbe;
     private boolean downloadProbe;
     private boolean trendingProbe;
+    private boolean translationProbe;
+    private boolean restoreTranslationProbe;
     @Override public void onCreate(Bundle arguments) {
         super.onCreate(arguments);
         oauthProbe = arguments != null && "true".equals(arguments.getString("oauth_probe"));
         downloadProbe = arguments != null && "true".equals(arguments.getString("download_probe"));
         trendingProbe = arguments != null && "true".equals(arguments.getString("trending_probe"));
+        translationProbe = arguments != null && "true".equals(arguments.getString("translation_probe"));
+        restoreTranslationProbe = arguments != null && "true".equals(arguments.getString("restore_translation_probe"));
         start();
     }
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
+            if (translationProbe || restoreTranslationProbe) {
+                verifyTranslationConfiguration(restoreTranslationProbe);
+                result.putString("result", restoreTranslationProbe ? "PASS: R8 reloads encrypted translation configuration after process restart and deletes it from settings" : "PASS: R8 saves translation configuration as ciphertext without making a translation request");
+                finish(Activity.RESULT_OK, result); return;
+            }
             if (trendingProbe) {
                 boolean background = verifyTrendingAndDailyNotifications();
                 result.putBoolean("background_job_verified", background);
@@ -131,17 +140,19 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             if (connectivity.getActiveNetwork() != null) throw new AssertionError("Network remained active during the offline test");
             click(waitFor("button", "阅读"));
             waitFor("class", "android.webkit.WebView"); waitFor("text", "Termux"); capture("release-offline-readme");
-            click(waitFor("button", "源码"));
+            click(waitFor("desc", "离线文档操作")); click(waitFor("button", "浏览已保存源码"));
             click(waitFor("button", "app")); click(waitFor("button", "src")); click(waitFor("button", "main")); click(waitFor("button", "AndroidManifest.xml"));
             waitFor("text", "manifest"); capture("release-offline-code");
             click(waitFor("desc", "文件树")); waitFor("text", "文件树"); capture("release-offline-tree");
             getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
-            click(waitFor("desc", "返回"));
+            for (int level = 0; level < 10 && find(getUiAutomation().getRootInActiveWindow(), "button", "删除") == null; level++) {
+                click(waitFor("desc", "返回")); SystemClock.sleep(250);
+            }
             click(waitFor("button", "删除")); waitFor("text", "删除离线快照？"); click(waitFor("button", "删除"));
             waitFor("text", "尚未保存离线仓库");
             getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             click(waitFor("desc", "我的")); click(waitFor("desc", "设置")); click(waitFor("button", "关于"));
-            click(waitFor("button", "版本更新记录")); waitFor("text", "0.6.2 · 当前"); capture("release-version-history");
+            click(waitFor("button", "版本更新记录")); waitFor("text", "0.6.3 · 当前"); capture("release-version-history");
             shell("svc wifi enable");
             shell("svc data enable");
             result.putString("result", "PASS: R8 APK prompts for clipboard links, saves a real GitHub snapshot with production foreground service, opens README and code with no active network, opens the file tree, deletes the snapshot, shows version history, and passes existing search/header/release/profile flows");
@@ -151,12 +162,30 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             shell("svc wifi enable"); shell("svc data enable"); capture("release-failure"); result.putString("result", "FAIL"); result.putString("error", Log.getStackTraceString(error)); finish(Activity.RESULT_CANCELED, result);
         }
     }
+    private void verifyTranslationConfiguration(boolean restore) throws Exception {
+        getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        SystemClock.sleep(1500);
+        AccessibilityNodeInfo dismiss = find(getUiAutomation().getRootInActiveWindow(), "button", "暂不");
+        if (dismiss != null) click(dismiss);
+        click(waitFor("desc", "我的")); click(waitFor("desc", "设置")); click(waitFor("button", "段落双语"));
+        if (!restore) {
+            AccessibilityNodeInfo input = waitFor("class", "android.widget.EditText");
+            Bundle value = new Bundle(); value.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "fixture-release-key");
+            if (!input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, value)) throw new AssertionError("Translation key input was not accepted");
+            click(waitFor("button", "保存")); click(waitFor("button", "段落双语"));
+        }
+        waitForWithScroll("button", "删除翻译配置");
+        File stored = new File(getTargetContext().getApplicationInfo().dataDir, "shared_prefs/bilingual-v2.xml");
+        String blob = new String(java.nio.file.Files.readAllBytes(stored.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+        if (!blob.contains("config") || blob.contains("fixture-release-key")) throw new AssertionError("Translation configuration was not saved as ciphertext");
+        if (restore) { click(waitFor("button", "删除翻译配置")); waitFor("text", "删除翻译配置和缓存？"); click(waitFor("button", "删除")); }
+    }
     private boolean verifyTrendingAndDailyNotifications() throws Exception {
         runOnMainSync(() -> ((android.content.ClipboardManager) getTargetContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE))
             .setPrimaryClip(android.content.ClipData.newPlainText("GitHub link", "https://github.com/termux/termux-app")));
         getTargetContext().startActivity(new Intent().setClassName("app.reporove", "app.reporove.MainActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         click(waitFor("button", "暂不"));
-        click(waitFor("desc", "热榜"));
+        click(waitFor("button", "热榜"));
         waitForNetwork("text", "GitHub Trending · 日榜");
         capture("trending-daily-full");
         waitForWithScroll("text", "已显示源榜提供的全部");

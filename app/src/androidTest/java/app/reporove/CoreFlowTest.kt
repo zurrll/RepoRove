@@ -40,6 +40,7 @@ class CoreFlowTest {
     private lateinit var container: AppContainer
     private var activity: Activity? = null
     private val queries = CopyOnWriteArrayList<String>()
+    private val translationRequests = CopyOnWriteArrayList<String>()
     private val markupRequests = java.util.concurrent.atomic.AtomicInteger()
     @Volatile private var starred = false
     @Volatile private var showCi = false
@@ -171,7 +172,16 @@ class CoreFlowTest {
         }
         server.start()
         val application = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
-        container = AppContainer(application) { token ->
+        val translationClient = app.reporove.core.translation.TranslationClient(OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            val buffer = okio.Buffer(); request.body!!.writeTo(buffer)
+            val body = buffer.readUtf8(); translationRequests += body
+            assertEquals("Bearer fixture-translation-key", request.header("Authorization"))
+            val source = AppJson.parseToJsonElement(body).jsonObject["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonPrimitive.content
+            val delta = buildJsonObject { putJsonArray("choices") { add(buildJsonObject { putJsonObject("delta") { put("content", "译文：$source") }; put("finish_reason", "stop") }) } }
+            okhttp3.Response.Builder().request(request).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK").body(("data: $delta\n\ndata: [DONE]\n\n").toResponseBody("text/event-stream".toMediaType())).build()
+        }.build())
+        container = AppContainer(application, translationClient = translationClient) { token ->
             val client = OkHttpClient.Builder().addNetworkInterceptor(GitHubHeaders(token, "localhost")).build()
             createApi(token, server.url("/").toString(), client)
         }
@@ -179,6 +189,7 @@ class CoreFlowTest {
             container.offline.ready.await()
             container.offline.snapshots.value.filter { it.repository.fullName == "demo/paper-reader" }.forEach { container.offline.delete(it.id) }
             container.repository.logout()
+            container.translations.remove()
             container.local.updatePreferences { Preferences(clipboardLinks = false) }
             container.local.collections.first().later.forEach { container.local.toggleLater(it) }
             container.local.collections.first().following.forEach { container.local.toggleFollowing(it) }
@@ -187,7 +198,7 @@ class CoreFlowTest {
     @After fun teardown() {
         runBlocking { container.offline.snapshots.value.filter { it.repository.fullName == "demo/paper-reader" }.forEach { container.offline.delete(it.id) } }
         compose.waitForIdle()
-        runBlocking { container.repository.logout(); container.local.updatePreferences { Preferences(clipboardLinks = false) } }
+        runBlocking { container.repository.logout(); container.translations.remove(); container.local.updatePreferences { Preferences(clipboardLinks = false) } }
         // Let preference-driven recomposition finish before the rule destroys the Activity.
         compose.waitForIdle()
         server.shutdown()
@@ -288,14 +299,82 @@ class CoreFlowTest {
         launch(); compose.onNodeWithContentDescription("我的").performClick(); waitFor("访问令牌")
         compose.onNodeWithContentDescription("设置").performClick(); waitFor("关于")
         compose.onNodeWithText("关于", substring = false).performClick(); waitFor("版本更新记录")
-        compose.onNodeWithText("版本更新记录").performClick(); waitFor("0.6.2 · 当前")
-        compose.onNodeWithText("新增 GitHub 浏览器设备授权登录", substring = true).assertExists()
+        compose.onNodeWithText("版本更新记录").performClick(); waitFor("0.6.3 · 当前")
+        compose.onNodeWithText("新增自带 API Key", substring = true).assertExists()
         compose.onNodeWithText("0.6.0", substring = false).performScrollTo().performClick()
         compose.onNodeWithText("修复 README 章节定位", substring = true).assertExists()
         screenshot("version-history")
         compose.onNodeWithContentDescription("返回").performClick(); waitFor("开源许可与致谢")
         compose.onNodeWithText("开源许可与致谢").performClick()
         compose.waitUntil(15000) { js("document.body.innerText").contains("Robin Stocker") }
+    }
+
+    @Test fun bilingualParagraphsKeepStructureAndReuseCacheWithoutIncreasingToolbarHeight() {
+        responsiveDocument = true
+        runBlocking { container.translations.save(app.reporove.core.translation.TranslationConfig(key = "fixture-translation-key", endpoint = "https://translation.fixture.invalid/chat/completions")) }
+        launch(); compose.onNodeWithText("paper-reader").performClick(); waitFor("阅读全文")
+        compose.onAllNodesWithText("阅读全文").onFirst().performClick()
+        compose.waitUntil(15000) { js("!!document.querySelector('#prose-table')") == "true" }
+        val initialHeight = js("innerHeight").toInt()
+        assertTrue(initialHeight > 500)
+        compose.onNodeWithContentDescription("开启双语").performClick()
+        compose.waitUntil(15000) { js("document.querySelector('.rr-translation')?.innerText.includes('译文')") == "true" }
+        compose.waitUntil(15000) { js("Array.from(document.querySelectorAll('.rr-translation')).every(e=>!e.innerText.includes('正在翻译'))") == "true" }
+        assertEquals(initialHeight, js("innerHeight").toInt())
+        assertEquals("true", js("!!document.querySelector('pre code') && document.querySelectorAll('#prose-table tr').length===2 && document.documentElement.scrollWidth<=innerWidth+1"))
+        assertTrue(translationRequests.none { it.contains("val longName") || it.contains("https://github.com/demo/paper-reader") })
+        android.os.SystemClock.sleep(1000)
+        val before = translationRequests.size
+        compose.onNodeWithContentDescription("关闭双语").performClick()
+        compose.waitUntil(5000) { js("!document.body.classList.contains('rr-bilingual')") == "true" }
+        compose.onNodeWithContentDescription("开启双语").performClick()
+        android.os.SystemClock.sleep(1200)
+        assertEquals(before, translationRequests.size)
+        js("window.scrollTo(0,400);true")
+        val position = js("Math.round(scrollY)")
+        runBlocking { container.local.updatePreferences { it.copy(theme = ThemeMode.Dark) } }
+        compose.waitUntil(10000) { js("getComputedStyle(document.body).backgroundColor") != "\"rgb(255, 255, 255)\"" }
+        assertEquals(position, js("Math.round(scrollY)"))
+        val xml = File(InstrumentationRegistry.getInstrumentation().targetContext.applicationInfo.dataDir, "shared_prefs/bilingual-v2.xml").readText()
+        assertFalse(xml.contains("fixture-translation-key"))
+        screenshot("bilingual-reader")
+    }
+
+    @Test fun privateDocumentsRequireConsentAndSourceModeNeverTranslates() {
+        privateRepository = true
+        runBlocking { container.repository.login("fixture-github-token"); container.translations.save(app.reporove.core.translation.TranslationConfig(key = "fixture-translation-key", endpoint = "https://translation.fixture.invalid/chat/completions")) }
+        launch(); compose.onNodeWithText("paper-reader").performClick(); waitFor("阅读全文")
+        compose.onAllNodesWithText("阅读全文").onFirst().performClick(); waitForDocument()
+        compose.onNodeWithContentDescription("开启双语").performClick(); waitFor("翻译这份私有文档？")
+        assertEquals(0, translationRequests.size)
+        compose.onNodeWithText("暂不翻译").performClick()
+        compose.onNodeWithContentDescription("关闭双语").performClick()
+        compose.onNodeWithContentDescription("开启双语").performClick(); waitFor("翻译这份私有文档？")
+        compose.onNodeWithText("翻译此文档").performClick()
+        compose.waitUntil(15000) { translationRequests.isNotEmpty() }
+        compose.onNodeWithContentDescription("关闭双语").performClick()
+        compose.onNodeWithContentDescription("文档操作").performClick(); compose.onNodeWithText("在文件树中打开").performClick()
+        compose.waitUntil(15000) { js("!!document.querySelector('h1')") == "true" }
+        compose.onNodeWithContentDescription("文件操作").performClick(); compose.onNodeWithText("查看源码").performClick()
+        compose.onNodeWithContentDescription("开启双语").assertDoesNotExist()
+        val before = translationRequests.size
+        android.os.SystemClock.sleep(700)
+        assertEquals(before, translationRequests.size)
+        runBlocking { container.repository.logout() }
+        assertFalse(File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "translation-v2").exists())
+    }
+
+    @Test fun discoveryHeaderCollapsesAndModesRemainReachable() {
+        launch()
+        compose.onNodeWithText("热榜", substring = false).assertExists()
+        compose.onNodeWithContentDescription("热榜").assertDoesNotExist()
+        compose.onNodeWithTag("discover-list:为你").performTouchInput { swipeUp() }
+        compose.onNodeWithContentDescription("搜索").assertIsNotDisplayed()
+        compose.onNodeWithTag("discover-tabs").assertIsDisplayed()
+        val before = queries.size
+        compose.onNodeWithText("探索", substring = false).performClick(); waitFor("查找主题")
+        compose.onNodeWithText("为你", substring = false).performClick(); waitFor("paper-reader")
+        assertEquals(before, queries.size)
     }
 
     @Test fun documentAnchorsAndCrossFileBackKeepTheSourcePosition() {
@@ -306,20 +385,20 @@ class CoreFlowTest {
         for (link in listOf("bare-link", "same-link")) {
             js("window.scrollTo(0,0);document.getElementById('$link').click();true")
             compose.waitUntil(10000) { js("Math.abs(document.querySelector('.markdown-heading').getBoundingClientRect().top) < 30 && window.scrollY > 500") == "true" }
-            compose.onNodeWithContentDescription("刷新 README").assertExists()
+            compose.onNodeWithContentDescription("文档操作").assertExists()
         }
         js("window.scrollTo(0,400);true")
         val position = js("window.scrollY").toInt()
         js("document.getElementById('guide-link').click();true")
-        waitFor("docs/guide.md")
+        waitFor("guide.md")
         compose.waitUntil(15000) { js("document.querySelector('h1')?.innerText === 'Linked Guide' && window.scrollY > 500") == "true" }
         compose.waitForIdle(); android.os.SystemClock.sleep(500)
         InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
         waitFor("README")
-        compose.onNodeWithContentDescription("刷新 README").assertExists()
+        compose.onNodeWithContentDescription("文档操作").assertExists()
         compose.waitUntil(10000) { js("window.scrollY").toIntOrNull()?.let { kotlin.math.abs(it - position) < 20 } == true }
         js("document.getElementById('code-link').click();true")
-        waitFor("src/Long.kt"); waitFor("2001–2300 行")
+        waitFor("Long.kt"); waitFor("2001–2300 行")
         compose.waitUntil(5000) {
             var positioned = false
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -346,7 +425,7 @@ class CoreFlowTest {
         // A numeric line link belongs to its original file; it must not force later
         // Markdown files opened in the same browser into source mode.
         js("document.getElementById('code-link').click();true")
-        waitFor("src/Long.kt")
+        waitFor("Long.kt")
         repeat(2) { compose.onNodeWithContentDescription("文件操作").performClick(); compose.onNodeWithText("上一级", substring = false).performClick(); compose.waitForIdle() }
         waitFor("docs"); compose.onNodeWithText("docs", substring = false).performClick()
         waitFor("guide.md"); compose.onNodeWithText("guide.md", substring = false).performClick()
@@ -449,9 +528,9 @@ class CoreFlowTest {
         compose.waitUntil(15000) { js("!!document.querySelector('#guide-link')") == "true" }
         js("(()=>{const a=document.createElement('a');a.href='https://github.com/demo/paper-reader/blob/main/README.md#deep-section';document.body.append(a);a.click();return true})()")
         compose.waitUntil(10000) { js("window.scrollY > 500") == "true" }
-        compose.onNodeWithContentDescription("已保存的仓库信息").assertExists()
+        compose.onNodeWithContentDescription("离线文档操作").assertExists()
         js("window.scrollTo(0,400);document.getElementById('guide-link').click();true")
-        waitFor("docs/guide.md")
+        waitFor("guide.md")
         compose.waitUntil(15000) { js("document.querySelector('h1')?.innerText === 'Guide' && !!document.getElementById('user-content-deep-section') && window.scrollY > 500") == "true" }
         InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
         compose.waitUntil(10000) { js("!!document.querySelector('#guide-link') && window.scrollY > 300") == "true" }
@@ -469,7 +548,7 @@ class CoreFlowTest {
         waitFor("阅读"); compose.onNodeWithText("阅读", substring = false).performClick()
         try { waitForDocument() } catch (e: Throwable) { screenshot("offline-readme-failure"); throw AssertionError("Offline DOM " + js("JSON.stringify({height:document.documentElement.clientHeight,body:document.body.innerText,html:document.body.innerHTML})"), e) }
         assertTrue(js("document.body.innerText").contains("Reading content"))
-        compose.onNodeWithText("源码", substring = false).performClick(); waitFor("src")
+        compose.onNodeWithContentDescription("离线文档操作").performClick(); compose.onNodeWithText("浏览已保存源码").performClick(); waitFor("src")
         compose.onNodeWithText("src", substring = false).performClick(); waitFor("Reader.kt")
         compose.onNodeWithText("Reader.kt", substring = false).performClick()
         compose.waitUntil(10000) { var present = false; InstrumentationRegistry.getInstrumentation().runOnMainSync { present = findCodeView(activity!!.window.decorView)?.text?.contains("Hello offline") == true }; present }
@@ -627,6 +706,7 @@ class CoreFlowTest {
     @Test fun interestEditsReplaceOldChipsAndCancelDoesNotPersist() {
         runBlocking { container.local.updatePreferences { it.copy(interests = listOf("android")) } }
         launch()
+        compose.onNodeWithText("全部兴趣").performClick()
         compose.onNodeWithText("android", substring = false).performClick()
         compose.onNodeWithText("调整兴趣").performClick()
         waitFor("已选 1 个")
@@ -639,8 +719,9 @@ class CoreFlowTest {
         compose.onNodeWithContentDescription("兴趣rust").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.onNodeWithText("保存兴趣").performClick()
         compose.waitUntil(10000) { runBlocking { container.local.preferences.first().interests == listOf("rust") } }
+        compose.onNodeWithText("全部兴趣").performClick()
         compose.onNodeWithText("android", substring = false).assertDoesNotExist()
-        compose.onNodeWithText("rust", substring = false).assertExists()
+        compose.onNodeWithText("rust", substring = false).assertExists().performClick()
         compose.onNodeWithText("调整兴趣").performClick()
         compose.onNodeWithText("清空").performClick()
         compose.onNodeWithText("取消", substring = false).performClick()

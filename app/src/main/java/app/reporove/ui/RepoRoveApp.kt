@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalFocusManager
@@ -128,7 +129,7 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
                 route.startsWith("thread/") -> if (entry?.arguments?.getBoolean("pull") == true) "Pull Request" else "Issue"
                 route.startsWith("release/") -> "版本详情"
                 route == "settings" -> "设置"
-                route.startsWith("settings/") -> when (entry?.arguments?.getString("section")) { "history" -> "版本更新记录"; "licenses" -> "开源许可与致谢"; "appearance" -> "外观与阅读"; "navigation" -> "导航与启动"; "repository" -> "仓库布局"; "feedback" -> "推荐排除"; "trending" -> "每日发现提醒"; else -> "关于" }
+                route.startsWith("settings/") -> when (entry?.arguments?.getString("section")) { "translation" -> "段落双语"; "history" -> "版本更新记录"; "licenses" -> "开源许可与致谢"; "appearance" -> "外观与阅读"; "navigation" -> "导航与启动"; "repository" -> "仓库布局"; "feedback" -> "推荐排除"; "trending" -> "每日发现提醒"; else -> "关于" }
                 route.startsWith("trending-digest") -> "每日发现"
                 route == "organizations" -> "我的组织"
                 route.startsWith("check/") -> "检查详情"
@@ -157,6 +158,7 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
             }
             ClipboardLinkPrompt(prefs, navigation, app)
             val main = MainTab.entries.any { it.name == route }
+            val readerRoute = route.startsWith("readme/") || route.startsWith("code/") || route.startsWith("offline-code/") || route.startsWith("offline-repo/")
             val focus = LocalFocusManager.current
             val keyboard = LocalSoftwareKeyboardController.current
             LaunchedEffect(route, account?.id) { focus.clearFocus(); keyboard?.hide() }
@@ -164,17 +166,19 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
                 val result = snackbar.showSnackbar(event.text, actionLabel = if (event.undo != null) "撤销" else null, withDismissAction = event.undo != null)
                 if (result == SnackbarResult.ActionPerformed) event.undo?.let { undo -> app.action("undo-feedback", block = undo) }
             } }
+            val discoverScroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
             Scaffold(
+                modifier = if (route == MainTab.Discover.name) Modifier.nestedScroll(discoverScroll.nestedScrollConnection) else Modifier,
                 snackbarHost = { SnackbarHost(snackbar) },
                 topBar = {
-                    TopAppBar(title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
+                    if (!readerRoute) TopAppBar(title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
                         if (!main) IconButton(onClick = navigation::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
                     }, actions = {
-                        if (main && route != MainTab.Trending.name) IconButton(onClick = { navigation.root(MainTab.Trending) }) { Icon(Icons.AutoMirrored.Outlined.TrendingUp, "热榜") }
+                        if (main && route != MainTab.Trending.name && route != MainTab.Discover.name) IconButton(onClick = { navigation.root(MainTab.Trending) }) { Icon(Icons.AutoMirrored.Outlined.TrendingUp, "热榜") }
                         if (main && route != MainTab.Search.name && (route != MainTab.Profile.name || account == null)) IconButton(onClick = { navigation.root(MainTab.Search) }) { Icon(Icons.Outlined.Search, "搜索") }
                         if (main && route != MainTab.Profile.name) IconButton(onClick = { navigation.root(MainTab.Profile) }) { UserAvatar(account, Modifier.size(28.dp), "我的") }
                         if (route == MainTab.Profile.name) IconButton(onClick = navigation::settings) { Icon(Icons.Outlined.Settings, "设置") }
-                    }, colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
+                    }, scrollBehavior = if (route == MainTab.Discover.name) discoverScroll else null, colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
                 },
                 bottomBar = {
                     if (main) NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
@@ -227,7 +231,7 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
                     }
                     composable("readme/{owner}/{name}") { ReadmeScreen(app, prefs, "${it.arguments?.getString("owner")}/${it.arguments?.getString("name")}") }
                     composable("code/{owner}/{name}?ref={ref}&path={path}&anchor={anchor}", arguments = listOf(navArgument("ref") { defaultValue = "main" }, navArgument("path") { defaultValue = "" }, navArgument("anchor") { defaultValue = "" })) {
-                        CodeScreen(app, prefs, navigation, "${it.arguments?.getString("owner")}/${it.arguments?.getString("name")}", it.arguments?.getString("ref") ?: "main", it.arguments?.getString("path").orEmpty(), it.arguments?.getString("anchor").orEmpty())
+                        CodeScreen(app, prefs, navigation, "${it.arguments?.getString("owner")}/${it.arguments?.getString("name")}", it.arguments?.getString("ref") ?: "main", it.arguments?.getString("path").orEmpty(), it.arguments?.getString("anchor").orEmpty(), standalone = true)
                     }
                     composable("thread/{owner}/{name}/{number}?pull={pull}&anchor={anchor}", arguments = listOf(navArgument("number") { type = NavType.IntType }, navArgument("pull") { type = NavType.BoolType; defaultValue = false }, navArgument("anchor") { defaultValue = "" })) {
                         ThreadScreen(app, prefs, "${it.arguments?.getString("owner")}/${it.arguments?.getString("name")}", it.arguments?.getInt("number") ?: 0, it.arguments?.getBoolean("pull") == true, it.arguments?.getString("anchor").orEmpty())

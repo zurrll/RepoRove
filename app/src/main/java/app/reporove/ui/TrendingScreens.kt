@@ -107,7 +107,7 @@ private fun trendingCount(count: Long): String = NumberFormat.getIntegerInstance
                 }
             }, modifier = Modifier.size(36.dp)) { Icon(if (saved) Icons.Outlined.BookmarkAdded else Icons.Outlined.BookmarkBorder, if (saved) "移出稍后看 ${entry.fullName}" else "稍后看 ${entry.fullName}") }
         }
-        Text(entry.fullName.substringAfter('/'), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(entry.fullName.substringAfter('/'), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         if (entry.description.isNotBlank()) Text(entry.description, style = MaterialTheme.typography.bodyLarge)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             entry.growth?.let { Text("${period.growthLabel} +${trendingCount(it)}", color = LocalSemanticColors.current.success, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold) }

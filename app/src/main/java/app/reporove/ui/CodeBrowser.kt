@@ -37,7 +37,7 @@ import java.util.Date
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun CodeBrowser(app: AppModel, prefs: Preferences, nav: AppNavigation, fullName: String, ref: String, initialPath: String, anchor: String = "", snapshot: OfflineSnapshot? = null) {
+@Composable fun CodeBrowser(app: AppModel, prefs: Preferences, nav: AppNavigation, fullName: String, ref: String, initialPath: String, anchor: String = "", snapshot: OfflineSnapshot? = null, standalone: Boolean = false) {
     val context = LocalContext.current
     val browserScope = remember { app.container.repository.scope }
     val model = screenModel("browser:$fullName:${snapshot?.id ?: "online"}:$ref:$initialPath") { CodeBrowserModel() }
@@ -64,15 +64,16 @@ import java.util.Date
     var find by remember { mutableStateOf(false) }
     val fileStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     val file = state.contents.singleOrNull()?.takeIf { it.path == state.path && it.type != "dir" }
+    val translation = rememberBilingualToggle("$fullName:$fileIdentity")
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { tree = true; model.loadDirectory("") }) { Icon(Icons.Outlined.AccountTree, "文件树") }
-            Text(state.path.ifEmpty { "根目录" }, Modifier.weight(1f).clickable { tree = true; model.loadDirectory("") }, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-            SourceBadge(state.offline, snapshot?.savedAt ?: 0, if (snapshot != null) "离线" else "缓存")
+        ReaderBar(state.path.substringAfterLast('/').ifEmpty { "根目录" }, if (standalone) ({ if (state.canGoBack) model.back() else nav.back() }) else null, { tree = true; model.loadDirectory("") }, contextLabel = "文件树") {
+            if (file != null && rendered) BilingualButton(translation)
             IconButton(onClick = { quick = true }) { Icon(Icons.Outlined.Search, "快速打开文件") }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreHoriz, "文件操作") }
                 DropdownMenu(menu, { menu = false }) {
+                    DropdownMenuItem(text = { Text("文件树与分支") }, onClick = { menu = false; tree = true; model.loadDirectory("") })
+                    if (snapshot?.documents == true) DropdownMenuItem(text = { Text("已保存的 README") }, onClick = { menu = false; nav.offlineRepo(snapshot.id) })
                     if (state.path.isNotEmpty()) DropdownMenuItem(text = { Text("上一级") }, onClick = { menu = false; model.open(state.path.substringBeforeLast('/', "")) })
                     if (snapshot == null) DropdownMenuItem(text = { Text("刷新代码") }, onClick = { menu = false; model.open(state.path, refresh = true) })
                     if (file != null) {
@@ -80,20 +81,11 @@ import java.util.Date
                             DropdownMenuItem(text = { Text(if (rendered) "查看源码" else "阅读模式") }, onClick = { menu = false; readingModes = readingModes + (fileIdentity to !rendered) })
                         }
                         DropdownMenuItem(text = { Text("复制整个文件") }, onClick = { menu = false; runCatching { GitHubRepository.text(file) }.getOrNull()?.let { copyText(context, file.name, it) } })
-                        DropdownMenuItem(text = { Text(if (wrap) "关闭自动换行" else "自动换行") }, onClick = { menu = false; wrap = !wrap })
+                        if (!rendered) DropdownMenuItem(text = { Text(if (wrap) "关闭自动换行" else "自动换行") }, onClick = { menu = false; wrap = !wrap })
                         DropdownMenuItem(text = { Text(if (rendered) "在源码中查找 / 跳行" else "文件内查找 / 跳行") }, onClick = { menu = false; readingModes = readingModes + (fileIdentity to false); find = true })
                     }
                 }
             }
-        }
-        if (file == null) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box { TextButton(onClick = { if (snapshot == null) branchMenu = true }) { Text(if (snapshot == null) state.ref else "${snapshot.ref} · ${snapshot.sha.take(7)}", maxLines = 1); if (snapshot == null) Icon(Icons.Outlined.ArrowDropDown, "选择分支") }
-                DropdownMenu(branchMenu, { branchMenu = false }) {
-                    (branchState as? LoadState.Ready)?.value?.forEach { branch -> DropdownMenuItem(text = { Text(branch.name) }, onClick = { branchMenu = false; model.open("", branch.name) }) }
-                    if (branchState is LoadState.Failed) DropdownMenuItem(text = { Text("重试加载分支") }, onClick = { branches.refresh() })
-                }
-            }
-            Spacer(Modifier.weight(1f)); if (state.path.isNotEmpty()) IconButton(onClick = { model.open(state.path.substringBeforeLast('/', "")) }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "上一级") }
         }
         when {
             state.loading -> LoadingIndicator()
@@ -102,19 +94,33 @@ import java.util.Date
                 val text = remember(file) { runCatching { GitHubRepository.text(file) } }
                 text.getOrNull()?.let { content ->
                     fileStates.SaveableStateProvider("${state.ref}:${state.path}") {
-                    if (rendered) MarkdownBody(content, prefs, Modifier.weight(1f), fullName, state.ref, state.path, fill = true, initialAnchor = anchor.takeIf { state.path == initialPath && state.ref == ref }.orEmpty(), offlineId = snapshot?.id, privateHint = snapshot?.repository?.isPrivate)
+                    if (rendered) MarkdownBody(content, prefs, Modifier.weight(1f), fullName, state.ref, state.path, fill = true, initialAnchor = anchor.takeIf { state.path == initialPath && state.ref == ref }.orEmpty(), offlineId = snapshot?.id, privateHint = snapshot?.repository?.isPrivate, bilingual = translation.enabled, translationAllowed = true)
                     else CodePane(content, state.path, state.ref, prefs, model, Modifier.weight(1f), wrap, find, { find = false }, anchor.takeIf { state.path == initialPath && state.ref == ref }.orEmpty())
                     }
                 } ?: EmptyState("无法预览", text.exceptionOrNull()?.message)
             }
             else -> LazyColumn(Modifier.weight(1f)) {
-                items(state.contents.sortedWith(compareBy<Content> { it.type != "dir" }.thenBy { it.name.lowercase() }), key = Content::path) { entry -> FileEntry(entry, state.path == entry.path) { model.open(entry.path) } }
+                items(state.contents.sortedWith(compareBy<Content> { it.type != "dir" }.thenBy { it.name.lowercase() }), key = Content::path) { entry -> FileEntry(entry, state.path == entry.path) { if (!standalone && entry.type != "dir") nav.code(fullName, state.ref, entry.path) else model.open(entry.path) } }
                 if (state.contents.isEmpty()) item { EmptyState("这个目录没有文件") }
             }
         }
     }
     if (tree) ModalBottomSheet(onDismissRequest = { tree = false }) {
         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 620.dp)) {
+            item { Note("$fullName · ${state.path.ifEmpty { "根目录" }}") }
+            item {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box { TextButton(onClick = { if (snapshot == null) branchMenu = true }) { Text(if (snapshot == null) state.ref else "${snapshot.ref} · ${snapshot.sha.take(7)}", maxLines = 1); if (snapshot == null) Icon(Icons.Outlined.ArrowDropDown, "选择分支") }
+                DropdownMenu(branchMenu, { branchMenu = false }) {
+                    (branchState as? LoadState.Ready)?.value?.forEach { branch -> DropdownMenuItem(text = { Text(branch.name) }, onClick = { branchMenu = false; model.open("", branch.name) }) }
+                    if (branchState is LoadState.Failed) DropdownMenuItem(text = { Text("重试加载分支") }, onClick = { branches.refresh() })
+                }
+            }
+            SourceBadge(state.offline, snapshot?.savedAt ?: 0, if (snapshot != null) "离线" else "缓存")
+            Spacer(Modifier.weight(1f)); if (state.path.isNotEmpty()) IconButton(onClick = { model.open(state.path.substringBeforeLast('/', "")) }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "上一级") }
+        }
+
+            }
             item { SectionTitle("文件树", "根目录", { tree = false; model.open("") }) }
             fun androidx.compose.foundation.lazy.LazyListScope.directory(path: String, depth: Int) {
                 if (depth > 30) return
@@ -124,7 +130,7 @@ import java.util.Date
                     item("tree:${entry.path}") { Row(Modifier.padding(start = (depth * 14).dp), verticalAlignment = Alignment.CenterVertically) {
                         if (entry.type == "dir") IconButton(onClick = { model.expand(entry.path) }) { Icon(if (entry.path in state.expanded) Icons.Outlined.ExpandMore else Icons.Outlined.ChevronRight, if (entry.path in state.expanded) "折叠目录" else "展开目录") }
                         else Spacer(Modifier.width(48.dp))
-                        FileEntry(entry, entry.path == state.path, Modifier.weight(1f)) { tree = false; model.open(entry.path) }
+                        FileEntry(entry, entry.path == state.path, Modifier.weight(1f)) { tree = false; if (!standalone && entry.type != "dir") nav.code(fullName, state.ref, entry.path) else model.open(entry.path) }
                     } }
                     if (entry.type == "dir" && entry.path in state.expanded) directory(entry.path, depth + 1)
                 }
@@ -140,7 +146,7 @@ import java.util.Date
             Column(Modifier.fillMaxWidth().heightIn(max = 600.dp)) {
                 OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 20.dp), label = { Text("文件名或路径") }, singleLine = true)
                 Note(if (query.isBlank()) "最近打开" else if (snapshot != null) "全部已保存源码" else "已加载目录和最近文件；展开文件树可加载更多目录。")
-                LazyColumn { items(files, key = { it }) { path -> ActionRow(path.substringAfterLast('/'), path) { quick = false; model.open(path) } }; if (files.isEmpty()) item { Note("暂无匹配文件。") } }
+                LazyColumn { items(files, key = { it }) { path -> ActionRow(path.substringAfterLast('/'), path) { quick = false; if (!standalone) nav.code(fullName, state.ref, path) else model.open(path) } }; if (files.isEmpty()) item { Note("暂无匹配文件。") } }
             }
         }
     }
@@ -207,7 +213,7 @@ fun codePages(text: String): List<CodePage> {
     pages += CodePage(text.substring(start), first, line); return pages
 }
 
-private fun copyText(context: android.content.Context, label: String, text: String) {
+internal fun copyText(context: android.content.Context, label: String, text: String) {
     val result = runCatching { (context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText(label, text)) }
     android.widget.Toast.makeText(context, if (result.isSuccess) { if (label == "路径") "已复制路径" else "已复制整个文件" } else "系统无法复制这份内容，请使用源码下载。", android.widget.Toast.LENGTH_LONG).show()
 }

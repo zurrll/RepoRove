@@ -11,6 +11,8 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalFocusManager
@@ -36,7 +38,7 @@ import kotlinx.serialization.json.*
     var sort by rememberSaveable { mutableStateOf("stars") }
     var dismissRepo by remember { mutableStateOf<Recommendation?>(null) }
     var choosingTopic by remember { mutableStateOf(false) }
-    val model = screenModel("discover") { PagedModel<Recommendation> { it.repository.id } }
+    val model = screenModel("discover:$mode") { PagedModel<Recommendation> { it.repository.id } }
     val state by model.state.collectAsStateWithLifecycle()
     val collections by app.container.repository.collections.collectAsStateWithLifecycle(CollectionState())
     val account by app.container.repository.account.collectAsStateWithLifecycle()
@@ -44,28 +46,37 @@ import kotlinx.serialization.json.*
     val interestKey = "${account?.id}:${prefs.interests}:${prefs.inferStarInterests}:${prefs.mutedTopics}:${prefs.mutedRepositories}:$revision:${RecommendationRanking.VERSION}"
     LaunchedEffect(prefs.interests, prefs.mutedTopics) { if (topic != "全部" && (topic !in prefs.interests || topic in prefs.mutedTopics)) topic = "全部" }
     LaunchedEffect(mode, topic, sort, interestKey) {
-        if (mode == "探索") return@LaunchedEffect
+        if (mode == "探索" || mode == "热榜") return@LaunchedEffect
         val actualTopic = topic.takeIf { it != "全部" && it in prefs.interests && it !in prefs.mutedTopics }
         model.configure("$mode:$actualTopic:$sort:$interestKey") { page, refresh ->
             if (mode == "为你") app.container.repository.recommendations(prefs, actualTopic, page, refresh)
             else app.container.repository.discover(actualTopic, sort, page, refresh).let { Loaded(Page(it.data.items.map { repo -> Recommendation(repo, emptyList()) }, page * 30 < minOf(it.data.totalCount, 1000), it.data.incomplete), it.cachedAt, it.offline) }
         }
     }
+    val pageStates = rememberSaveableStateHolder()
+    var interestPicker by remember { mutableStateOf(false) }
+    var sortPicker by remember { mutableStateOf(false) }
     Column {
-        ActionRow("热榜", "日榜、周榜、月榜 · 查看完整榜单") { nav.root(MainTab.Trending) }
-        ChoiceRow(listOf("为你", "探索", "热门"), mode, { if (it == "热门") "仓库排行" else it }, { mode = it; topic = "全部" })
-        if (mode == "探索") ExploreBrowser(app, nav)
-        else LazyColumn(Modifier.fillMaxSize()) {
-            if (mode == "为你") {
-                item { SectionTitle("你的兴趣", "调整兴趣", nav::interests) }
-                if (prefs.interests.isEmpty()) item { Note(if (prefs.inferStarInterests) "根据 Star 的主题发现项目；也可以添加兴趣。" else "先看看活跃的热门项目，添加兴趣后会更贴近你的方向。") }
-                else item { ChoiceRow(listOf("全部") + prefs.interests.filterNot { it in prefs.mutedTopics }, topic, { it }, { topic = it }) }
-                item { Note(if (prefs.inferStarInterests) "兴趣优先，并参考 Star；以活跃且有一定关注度的项目为主。" else "兴趣优先，兼顾关注度与维护情况，少量探索较新的项目。") }
-            } else {
-                item { ChoiceRow(listOf("stars", "updated", "forks"), sort, { when (it) { "stars" -> "Star 最多"; "updated" -> "最近更新"; else -> "Fork 最多" } }, { sort = it }) }
-                item { Note("公开仓库按所选指标排序。") }
+        DiscoverTabs(mode) { mode = it }
+        pageStates.SaveableStateProvider(mode) {
+        if (mode == "热榜") TrendingScreen(app, prefs, nav)
+        else if (mode == "探索") ExploreBrowser(app, nav)
+        else LazyColumn(Modifier.fillMaxSize().testTag("discover-list:$mode")) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (mode == "为你") {
+                        TextButton(onClick = { interestPicker = true }) { Text(if (topic == "全部") "全部兴趣" else topic); Icon(Icons.Outlined.ArrowDropDown, null) }
+                        TextButton(onClick = nav::interests) { Text(if (prefs.interests.isEmpty()) "添加兴趣" else "调整兴趣") }
+                    } else Box {
+                        TextButton(onClick = { sortPicker = true }) { Text(when (sort) { "stars" -> "总 Star 最多"; "updated" -> "最近更新"; else -> "总 Fork 最多" }); Icon(Icons.Outlined.ArrowDropDown, null) }
+                        DropdownMenu(sortPicker, { sortPicker = false }) {
+                            listOf("stars" to "总 Star 最多", "updated" to "最近更新", "forks" to "总 Fork 最多").forEach { (value, label) -> DropdownMenuItem(text = { Text(label) }, onClick = { sortPicker = false; sort = value }) }
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = model::refresh) { Icon(Icons.Outlined.Refresh, "刷新项目") }
+                }
             }
-            item { SectionTitle("项目", "刷新", model::refresh) }
             items(state.items, key = { it.repository.id }) { item ->
                 if (mode == "为你") Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(item.reasons.joinToString(" · "), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = LocalSemanticColors.current.link)
@@ -74,6 +85,15 @@ import kotlinx.serialization.json.*
                 ProjectRow(app, nav, prefs, item.repository, collections)
             }
             listFeedback(state, model::refresh, model::more, "暂时没有匹配的项目")
+        }
+        }
+    }
+    if (interestPicker) ModalBottomSheet(onDismissRequest = { interestPicker = false }) {
+        LazyColumn(Modifier.heightIn(max = 500.dp)) {
+            item { SectionTitle("按兴趣查看", "调整兴趣", { interestPicker = false; nav.interests() }) }
+            items(listOf("全部") + prefs.interests.filterNot { it in prefs.mutedTopics }, key = { it }) { value ->
+                ListItem(headlineContent = { Text(if (value == "全部") "全部兴趣" else value) }, trailingContent = { if (topic == value) Icon(Icons.Outlined.Check, "已选择") }, modifier = Modifier.clickable { topic = value; interestPicker = false })
+            }
         }
     }
     dismissRepo?.let { recommendation ->
@@ -112,10 +132,14 @@ import kotlinx.serialization.json.*
 @Composable private fun ExploreBrowser(app: AppModel, nav: AppNavigation) {
     var section by rememberSaveable { mutableStateOf("主题") }
     var text by rememberSaveable { mutableStateOf("") }
+    var sections by remember { mutableStateOf(false) }
     val catalog = remember(app) { app.container.catalogs.explore }
     val entries = remember(section, text) { (if (section == "主题") catalog.topics else catalog.collections).filter { it.name.contains(text, true) || it.slug.contains(text, true) || it.description.contains(text, true) } }
     LazyColumn {
-        item { ChoiceRow(listOf("主题", "合集"), section, { it }, { section = it }) }
+        item { Box(Modifier.padding(horizontal = 12.dp)) {
+            TextButton(onClick = { sections = true }) { Text(section); Icon(Icons.Outlined.ArrowDropDown, null) }
+            DropdownMenu(sections, { sections = false }) { listOf("主题", "合集").forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { section = value; sections = false }) } }
+        } }
         item { OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth().padding(20.dp), singleLine = true, label = { Text("查找${section}") }, leadingIcon = { Icon(Icons.Outlined.Search, null) }) }
         item { Note("来自 GitHub Explore 的公开精选目录 · ${entries.size} 项") }
         items(entries, key = ExploreEntry::slug) { entry -> ActionRow(entry.name, entry.description.lineSequence().firstOrNull()?.take(200)) { if (section == "主题") nav.topic(entry.slug) else nav.collection(entry.slug) } }
@@ -228,5 +252,12 @@ private data class CollectionItem(val source: String, val repository: Repository
             items(prefs.mutedTopics, key = { "topic:$it" }) { topic -> ListItem(headlineContent = { Text(app.container.catalogs.explore.topics.firstOrNull { it.slug == topic }?.name ?: topic) }, trailingContent = { TextButton(onClick = { app.updatePreferences { it.copy(mutedTopics = it.mutedTopics - topic) } }) { Text("恢复") } }) }
         }
         if (prefs.mutedTopics.isNotEmpty() || prefs.mutedRepositories.isNotEmpty()) item { TextButton(onClick = { app.updatePreferences { it.copy(mutedTopics = emptyList(), mutedRepositories = emptyList(), mutedRepositoryNames = emptyMap()) } }, Modifier.padding(20.dp)) { Text("恢复全部推荐") } }
+    }
+}
+
+@Composable fun DiscoverTabs(selected: String, select: (String) -> Unit) {
+    val modes = listOf("为你", "热榜", "探索", "热门")
+    ScrollableTabRow(modifier = Modifier.testTag("discover-tabs"), selectedTabIndex = modes.indexOf(selected).coerceAtLeast(0), edgePadding = 12.dp, containerColor = MaterialTheme.colorScheme.background, divider = {}) {
+        modes.forEach { mode -> Tab(selected = selected == mode, onClick = { select(mode) }, text = { Text(if (mode == "热门") "仓库排行" else mode, maxLines = 1, fontWeight = if (mode == selected) FontWeight.Bold else FontWeight.Normal) }) }
     }
 }

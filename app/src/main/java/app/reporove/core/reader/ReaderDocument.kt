@@ -30,7 +30,7 @@ object MarkdownLinks {
 }
 
 data class ReaderPalette(val body: String, val muted: String, val background: String, val border: String, val code: String, val link: String, val green: String, val red: String, val purple: String, val amber: String, val dark: Boolean)
-data class PreparedDocument(val html: String, val codeBlocks: List<String>)
+data class PreparedDocument(val html: String, val codeBlocks: List<String>, val translationBlocks: List<app.reporove.core.translation.TranslationBlock> = emptyList())
 
 object ReaderDocument {
     private val extensions = listOf(TablesExtension.create(), StrikethroughExtension.create())
@@ -43,12 +43,16 @@ object ReaderDocument {
             .addAttributes(":all", "class", "id", "dir", "title", "aria-label")
             .addAttributes("input", "type", "checked", "disabled")
             .addAttributes("source", "srcset", "media", "type").addAttributes("img", "width", "height")
-            .addAttributes("th", "align").addAttributes("td", "align")
+            .addAttributes("th", "align", "colspan", "rowspan").addAttributes("td", "align", "colspan", "rowspan")
             .addAttributes("a", "name").addProtocols("a", "href", "#").preserveRelativeLinks(true)
         // Resolve first, then sanitize protocols. No content-provided script, style, iframe or handler survives.
         val raw = Jsoup.parseBodyFragment(html)
         raw.select("script,style,iframe,object,embed,form,svg").remove()
         raw.select("th,td").forEach { cell ->
+            listOf("colspan", "rowspan").forEach { attribute ->
+                val span = cell.attr(attribute).toIntOrNull()
+                if (span == null || span !in 1..1000) cell.removeAttr(attribute)
+            }
             // GFM/local renderers use either align or style; retain only this presentation value.
             Regex("(?:^|;)\\s*text-align\\s*:\\s*(left|center|right)\\s*(?:;|$)", RegexOption.IGNORE_CASE)
                 .find(cell.attr("style"))?.let { cell.attr("align", it.groupValues[1].lowercase()) }

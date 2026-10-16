@@ -106,7 +106,7 @@ class TrendingFlowTest {
     @Test fun toolbarEntryWorksWithoutInterestsAndHeatBoardCanBeTheStartupPage() = runBlocking {
         container.local.updatePreferences { Preferences(clipboardLinks = false) }
         compose.setContent { RepoRoveApp(container) }
-        compose.onNodeWithContentDescription("热榜").performClick()
+        compose.onNodeWithText("热榜", substring = false).performClick()
         waitFor("daily-1")
         compose.onNodeWithText("今日精选").performClick()
         waitFor("为你精选")

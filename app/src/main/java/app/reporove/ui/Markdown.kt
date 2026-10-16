@@ -1,5 +1,7 @@
 package app.reporove.ui
 
+import app.reporove.R
+import app.reporove.core.translation.TranslationDocument
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -32,7 +34,7 @@ import kotlinx.coroutines.withContext
 // Retained source-compatible helper for existing tests and callers.
 typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
 
-@Composable fun MarkdownBody(markdown: String, prefs: Preferences, modifier: Modifier = Modifier, fullName: String? = null, ref: String = "main", path: String = "README.md", preview: Boolean = false, fill: Boolean = false, renderedHtml: String? = null, initialAnchor: String = "", offlineId: String? = null, privateHint: Boolean? = null) {
+@Composable fun MarkdownBody(markdown: String, prefs: Preferences, modifier: Modifier = Modifier, fullName: String? = null, ref: String = "main", path: String = "README.md", preview: Boolean = false, fill: Boolean = false, renderedHtml: String? = null, initialAnchor: String = "", offlineId: String? = null, privateHint: Boolean? = null, bilingual: Boolean = false, translationAllowed: Boolean = false) {
     val context = LocalContext.current
     val app = LocalAppModel.current
     val nav = LocalAppNavigation.current
@@ -40,8 +42,8 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
     val semantic = LocalSemanticColors.current
     fun Color.css() = "#%06x".format(toArgb() and 0xffffff)
     val palette = ReaderPalette(colors.onSurface.css(), colors.onSurfaceVariant.css(), colors.background.css(), colors.outlineVariant.css(), semantic.code.css(), semantic.link.css(), semantic.success.css(), semantic.danger.css(), semantic.merged.css(), semantic.warning.css(), semantic.dark)
-    var isPrivate by remember(fullName) { mutableStateOf(privateHint ?: false) }
-    val privateDocument by rememberUpdatedState(isPrivate)
+    var isPrivate by remember(fullName) { mutableStateOf(privateHint) }
+    val privateDocument by rememberUpdatedState(isPrivate == true)
     val imageCache = remember(fullName, ref) { object : LinkedHashMap<String, ByteArray>(16, .75f, true) {} }
     var html by remember(markdown, fullName, renderedHtml) { mutableStateOf<String?>(renderedHtml) }
     LaunchedEffect(markdown, fullName, renderedHtml) {
@@ -53,9 +55,22 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
         catch (error: CancellationException) { throw error }
         catch (_: Exception) { html = withContext(Dispatchers.Default) { ReaderDocument.localMarkdown(markdown) }; if (fill) app.message("暂时使用基础排版；联网刷新可重试 GitHub 完整格式") }
     }
-    val document by produceState<app.reporove.core.reader.PreparedDocument?>(null, html, palette, prefs.textScale, fullName, ref, path) {
+    LaunchedEffect(fullName, privateHint, translationAllowed) {
+        if (privateHint != null) isPrivate = privateHint
+        if (translationAllowed && privateHint == null && fullName != null) {
+            try { isPrivate = app.container.repository.repository(fullName).data.isPrivate }
+            catch (error: CancellationException) { throw error }
+            catch (_: Exception) { app.message("无法确认文档来源，暂不发送翻译内容。") }
+        }
+    }
+    val document by produceState<app.reporove.core.reader.PreparedDocument?>(null, html, palette, prefs.textScale, fullName, ref, path, translationAllowed) {
         val source = html
-        value = if (source == null) null else withContext(Dispatchers.Default) { ReaderDocument.prepare(source, palette, prefs.textScale, fullName, ref, path) }
+        value = if (source == null) null else withContext(Dispatchers.Default) { val prepared = ReaderDocument.prepare(source, palette, prefs.textScale, fullName, ref, path)
+            if (!translationAllowed) prepared else {
+                val translated = TranslationDocument.prepare(prepared.html)
+                prepared.copy(html = translated.html, translationBlocks = translated.blocks)
+            }
+        }
     }
     var height by remember(markdown) { mutableStateOf(200) }
     var webView by remember { mutableStateOf<WebView?>(null) }
@@ -91,6 +106,7 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
         else nav.open(url, app) { openUrl(context, it) }
     }
     DisposableEffect(Unit) { onDispose { webView?.apply { stopLoading(); destroy() }; webView = null } }
+    if (translationAllowed) BilingualReader(app, webView, document?.translationBlocks.orEmpty(), bilingual, !loadingDocument, "$fullName/$ref/$path", isPrivate, "$fullName/$path")
     Column(modifier) {
 
         val prepared = document
@@ -143,6 +159,10 @@ typealias MarkdownLinks = app.reporove.core.reader.MarkdownLinks
                     }
                     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                         val url = request.url.toString()
+                        if (request.url.host == "reader.reporove.invalid" && request.url.path?.startsWith("/translate-retry/") == true) {
+                            view.setTag(R.id.translation_retry, request.url.lastPathSegment)
+                            return true
+                        }
                         if (request.url.host == "reader.reporove.invalid" && request.url.path?.startsWith("/copy/") == true) {
                             request.url.lastPathSegment?.toIntOrNull()?.let { index -> currentDocument?.codeBlocks?.getOrNull(index)?.let { code ->
                                 (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("代码", code))

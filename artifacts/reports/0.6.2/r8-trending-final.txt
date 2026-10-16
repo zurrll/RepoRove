@@ -1,4 +1,0 @@
-INSTRUMENTATION_RESULT: background_job_verified=true
-INSTRUMENTATION_RESULT: network_retries=0
-INSTRUMENTATION_RESULT: result=PASS: actual R8 APK reads full GitHub day/week/month and language boards, opens personalized picks, posts a real deduplicated notification, opens its saved selection from the notification shade, and disables the job and notification
-INSTRUMENTATION_CODE: -1

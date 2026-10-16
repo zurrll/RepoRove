@@ -60,6 +60,7 @@ private fun <T> List<T>.moved(value: T, offset: Int): List<T> {
 @Composable fun SettingsScreen(app: AppModel, prefs: Preferences, nav: AppNavigation) {
     LazyColumn(Modifier.testTag("settings-list")) {
         item { ActionRow("外观与阅读", "${prefs.themeId.label} · ${prefs.theme.label} · 字号 ${(prefs.textScale * 100).toInt()}%") { nav.settingsSection("appearance") } }
+        item { ActionRow("段落双语", "自带 API Key · 文档与项目介绍") { nav.settingsSection("translation") } }
         item { ActionRow("导航与启动", "启动：${prefs.home.label}") { nav.settingsSection("navigation") } }
         item { ActionRow("仓库布局", "${prefs.repoTabs.size} 个常驻栏目 · 全仓库共用") { nav.settingsSection("repository") } }
         item { ActionRow("推荐兴趣", "${prefs.interests.size} 个兴趣 · 也可在为你调整", nav::interests) }
@@ -70,6 +71,7 @@ private fun <T> List<T>.moved(value: T, offset: Int): List<T> {
 }
 
 @Composable fun SettingsDetailScreen(app: AppModel, prefs: Preferences, nav: AppNavigation, section: String) {
+    if (section == "translation") { TranslationSettings(app, nav); return }
     if (section == "licenses") {
         val context = androidx.compose.ui.platform.LocalContext.current
         val notices = remember { context.assets.open("licenses/notices.md").bufferedReader().use { it.readText() } }

@@ -1,8 +1,0 @@
-INSTRUMENTATION_RESULT: error=java.lang.AssertionError: Missing text: GitHub Trending · 月榜
-	at app.reporove.smoke.ReleaseSmokeInstrumentation.waitForNetwork(ReleaseSmokeInstrumentation.java:354)
-	at app.reporove.smoke.ReleaseSmokeInstrumentation.verifyTrendingAndDailyNotifications(ReleaseSmokeInstrumentation.java:180)
-	at app.reporove.smoke.ReleaseSmokeInstrumentation.onStart(ReleaseSmokeInstrumentation.java:35)
-	at android.app.Instrumentation$InstrumentationThread.run(Instrumentation.java:2594)
-
-INSTRUMENTATION_RESULT: result=FAIL
-INSTRUMENTATION_CODE: 0

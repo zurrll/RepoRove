@@ -83,31 +83,33 @@ import java.util.Date
 
 @Composable fun OfflineRepositoryScreen(app: AppModel, prefs: Preferences, nav: AppNavigation, id: String, initialPath: String? = null, anchor: String = "") {
     val snapshots by app.container.offline.snapshots.collectAsStateWithLifecycle()
-    val snapshot = snapshots.firstOrNull { it.id == id } ?: run { EmptyState("离线快照不存在", "快照可能已被删除、更新，或所属账号已退出。"); return }
+    val snapshot = snapshots.firstOrNull { it.id == id } ?: run { Column { ReaderBar("离线仓库", nav::back); EmptyState("离线快照不存在", "快照可能已被删除、更新，或所属账号已退出。") }; return }
     var section by rememberSaveable(id) { mutableStateOf(if (initialPath != null || !snapshot.documents) "源码" else "资料") }
     var information by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    val translation = rememberBilingualToggle("offline:${snapshot.id}")
     Column(Modifier.fillMaxSize()) {
-        if (initialPath == null && section == "资料") Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(snapshot.repository.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-            IconButton(onClick = { information = true }) { Icon(Icons.Outlined.Info, "已保存的仓库信息") }
+        if (section == "资料") ReaderBar(snapshot.readmePath?.substringAfterLast('/') ?: snapshot.repository.name, nav::back, { information = true }) {
             SourceBadge(true, snapshot.savedAt, "离线")
-        }
-        if (initialPath == null && snapshot.documents && snapshot.code) ChoiceRow(listOf("资料", "源码"), section, { it }, { section = it })
-        if (section == "源码" && snapshot.code) CodeBrowser(app, prefs, nav, snapshot.repository.fullName, snapshot.sha, initialPath.orEmpty(), anchor = anchor, snapshot = snapshot)
-        else if (snapshot.documents) {
-            Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("★ ${snapshot.repository.stars.toString()}", color = LocalSemanticColors.current.warning, style = MaterialTheme.typography.labelMedium)
-                Text(snapshot.repository.language ?: "", color = LocalSemanticColors.current.link, style = MaterialTheme.typography.labelMedium)
-                Text(snapshot.sha.take(7), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+            BilingualButton(translation)
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreHoriz, "离线文档操作") }
+                DropdownMenu(menu, { menu = false }) {
+                    DropdownMenuItem(text = { Text("已保存的仓库信息") }, onClick = { menu = false; information = true })
+                    if (snapshot.code) DropdownMenuItem(text = { Text("浏览已保存源码") }, onClick = { menu = false; section = "源码" })
+                }
             }
-            if (snapshot.readme != null) MarkdownBody(snapshot.readme, prefs, Modifier.weight(1f), snapshot.repository.fullName, snapshot.sha, snapshot.readmePath ?: "README.md", fill = true, renderedHtml = snapshot.readmeHtml, offlineId = snapshot.id, privateHint = snapshot.repository.isPrivate)
+        }
+        if (section == "源码" && snapshot.code) CodeBrowser(app, prefs, nav, snapshot.repository.fullName, snapshot.sha, initialPath.orEmpty(), anchor = anchor, snapshot = snapshot, standalone = true)
+        else if (snapshot.documents) {
+            if (snapshot.readme != null) MarkdownBody(snapshot.readme, prefs, Modifier.weight(1f), snapshot.repository.fullName, snapshot.sha, snapshot.readmePath ?: "README.md", fill = true, renderedHtml = snapshot.readmeHtml, offlineId = snapshot.id, privateHint = snapshot.repository.isPrivate, bilingual = translation.enabled, translationAllowed = true)
             else EmptyState("没有 README", snapshot.repository.description)
         }
     }
     if (information) AlertDialog(onDismissRequest = { information = false }, title = { Text(snapshot.repository.fullName) }, text = {
         Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             snapshot.repository.description?.let { Text(it) }
-            Text("${snapshot.ref} · ${snapshot.sha.take(7)}")
+            Text("${snapshot.ref} · ${snapshot.sha.take(7)} · 离线")
             Text("Star ${snapshot.repository.stars} · Fork ${snapshot.repository.forks} · Issue / PR ${snapshot.repository.openItems}")
             snapshot.repository.license?.spdxId?.let { Text("许可：$it") }
             if (snapshot.repository.topics.isNotEmpty()) Text("主题：${snapshot.repository.topics.joinToString("、")}")

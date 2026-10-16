@@ -1,2 +1,0 @@
-INSTRUMENTATION_RESULT: result=PASS: actual R8 APK downloads the public RepoRove APK, reads its system content URI, opens the system installer without installing, and deletes both the file and download record
-INSTRUMENTATION_CODE: -1
