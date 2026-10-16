@@ -99,7 +99,7 @@ class AppNavigation(private val controller: androidx.navigation.NavHostControlle
     fun settings() { controller.navigate("settings") { launchSingleTop = true } }
     fun downloads() { controller.navigate("downloads") { launchSingleTop = true } }
     fun trendingDigest(day: String = "") { controller.navigate("trending-digest?day=${Uri.encode(day)}") { launchSingleTop = true } }
-    fun back() { controller.popBackStack() }
+    fun back() { if (controller.previousBackStackEntry != null) controller.popBackStack() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -7,10 +7,14 @@ import org.jsoup.nodes.TextNode
 import java.security.MessageDigest
 
 /** A complete semantic block, with non-translatable inline content kept locally. */
-data class TranslationBlock(val id: String, val text: String, val protected: List<String>) {
-    fun valid(result: String): Boolean = result.isNotBlank() && result.length <= 24000 &&
-        protected.indices.all { index -> Regex(Regex.escape(token(index))).findAll(result).count() == 1 } &&
-        Regex("__RR_\\d+__").findAll(result).all { it.value in protected.indices.map(::token) }
+data class TranslationBlock(val id: String, val text: String, val protected: List<String>, val linkPairs: List<Pair<Int, Int>> = emptyList()) {
+    fun valid(result: String): Boolean {
+        if (result.isBlank() || result.length > 24000) return false
+        if (!protected.indices.all { index -> Regex(Regex.escape(token(index))).findAll(result).count() == 1 }) return false
+        if (Regex("__RR_\\d+__").findAll(result).any { it.value !in protected.indices.map(::token) }) return false
+        val intervals = linkPairs.map { (open, close) -> result.indexOf(token(open)) to result.indexOf(token(close)) }.sortedBy { it.first }
+        return intervals.all { it.first >= 0 && it.first < it.second } && intervals.zipWithNext().all { (a, b) -> a.second < b.first }
+    }
     fun render(result: String): String {
         require(valid(result)) { "译文未保留代码或链接，请重试。" }
         var output = org.jsoup.nodes.TextNode(result).outerHtml()
@@ -40,9 +44,21 @@ object TranslationDocument {
             if (run.isNotEmpty()) runs += run
             runs.forEach runLoop@ { nodes ->
                 val protected = mutableListOf<String>()
+                val linkPairs = mutableListOf<Pair<Int, Int>>()
                 fun text(node: Node): String = when {
                     node is TextNode -> node.wholeText
-                    node is Element && node.tagName() in setOf("code", "kbd", "samp", "a") -> {
+                    node is Element && node.tagName() == "a" -> {
+                        if (node.text().isBlank()) "" else {
+                            val open = protected.size
+                            protected += node.clone().empty().removeAttr("id").removeAttr("name").outerHtml().removeSuffix("</a>")
+                            val label = node.childNodes().joinToString("") { text(it) }
+                            val close = protected.size
+                            protected += "</a>"
+                            linkPairs += open to close
+                            TranslationBlock.token(open) + label + TranslationBlock.token(close)
+                        }
+                    }
+                    node is Element && node.tagName() in setOf("code", "kbd", "samp") -> {
                         if (node.text().isBlank()) "" else TranslationBlock.token(protected.size).also { protected += node.clone().apply {
                             removeAttr("id"); removeAttr("name")
                             select("[id],[name]").forEach { it.removeAttr("id"); it.removeAttr("name") }
@@ -65,7 +81,7 @@ object TranslationDocument {
                 val span = Element("span").attr("data-rr-source", id)
                 nodes.first().before(span)
                 nodes.forEach(span::appendChild)
-                blocks += TranslationBlock(id, source, protected)
+                blocks += TranslationBlock(id, source, protected, linkPairs)
             }
         }
         doc.head().appendElement("style").text("body.rr-bilingual{overflow-anchor:none}.rr-translation{display:block;font:inherit;font-weight:400;color:var(--fg);border-inline-start:2px solid var(--border);padding-inline-start:.75em;margin:.35em 0 .8em;line-height:1.65}.rr-translation a{color:var(--link)}.rr-translation code{font-size:.9em}.rr-translation.rr-error{font-size:.85em;color:var(--muted)}h1 .rr-translation,h2 .rr-translation,h3 .rr-translation{font-size:.8em;line-height:1.5}body:not(.rr-bilingual) .rr-translation{display:none}")

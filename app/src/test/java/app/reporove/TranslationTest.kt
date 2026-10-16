@@ -27,12 +27,14 @@ class TranslationTest {
         val result = TranslationDocument.prepare("<p>Install <strong>the package</strong> with <code>npm install</code>, then read <a id='guide-link' href='https://example.com/docs'>the guide</a>.</p><pre><code>// English comment must not translate</code></pre>")
         assertEquals(1, result.blocks.size)
         val block = result.blocks.single()
-        assertEquals("Install the package with __RR_0__, then read __RR_1__.", block.text)
-        assertEquals(2, block.protected.size)
-        assertFalse(block.protected.last().contains("id="))
-        val rendered = Jsoup.parseBodyFragment(block.render("使用 __RR_0__ 安装，然后阅读 __RR_1__。"))
+        assertEquals("Install the package with __RR_0__, then read __RR_1__the guide__RR_2__.", block.text)
+        assertEquals(3, block.protected.size)
+        assertFalse(block.protected.any { it.contains("id=") })
+        val rendered = Jsoup.parseBodyFragment(block.render("使用 __RR_0__ 安装，然后阅读 __RR_1__指南__RR_2__。"))
         assertEquals("npm install", rendered.selectFirst("code")?.text())
         assertEquals("https://example.com/docs", rendered.selectFirst("a")?.attr("href"))
+        assertEquals("指南", rendered.selectFirst("a")?.text())
+        assertFalse(block.valid("__RR_2__指南__RR_1__ __RR_0__"))
         assertTrue(result.html.contains("// English comment must not translate"))
     }
     @Test fun nestedListsAndTableCellsRemainInTheirOriginalStructureWithoutDuplicates() {

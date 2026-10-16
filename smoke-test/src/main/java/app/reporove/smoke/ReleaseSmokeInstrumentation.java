@@ -145,8 +145,9 @@ public final class ReleaseSmokeInstrumentation extends Instrumentation {
             waitFor("text", "manifest"); capture("release-offline-code");
             click(waitFor("desc", "文件树")); waitFor("text", "文件树"); capture("release-offline-tree");
             getUiAutomation().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+            getUiAutomation().waitForIdle(500, 5000);
             for (int level = 0; level < 10 && find(getUiAutomation().getRootInActiveWindow(), "button", "删除") == null; level++) {
-                click(waitFor("desc", "返回")); SystemClock.sleep(250);
+                click(waitFor("desc", "返回")); getUiAutomation().waitForIdle(500, 5000);
             }
             click(waitFor("button", "删除")); waitFor("text", "删除离线快照？"); click(waitFor("button", "删除"));
             waitFor("text", "尚未保存离线仓库");
